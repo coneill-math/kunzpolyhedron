@@ -634,7 +634,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False):
 	return coord
 
 
-def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False):
+def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True):
 	'''
 	Creates the Kunz or Apery Poset of a Numerical Semigroup Structured by the Minimal Elements.
 	
@@ -645,7 +645,8 @@ def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=
 	colored: whether to color the edges based off the minimal element that the edge represents or not, default true
 	kunz: whether to make a Kunz poset or apery poset, default is Kunz
 	verbose: prints out additional information about inner workings of functions. useful for troubleshooting
-	return: a graphics type object of the plot of the poset being generated
+    plot: whether to return a plot of the poset (graphic object) or just the poset object, default true NOTE: if returning poset object uses sage default poset style
+	return: a graphics type object of the plot of the poset being generated or a poset object for the numerical semigroup
 	'''
 	if type(NSG) == list:
 		NSG = NumericalSemigroup(NSG)
@@ -678,20 +679,21 @@ def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=
 		Comb[1]=covers
 		#Comb[1]=coversOrdered
 		PP=Poset(Comb,cover_relations=True)
-		HH=PP.hasse_diagram() #turns the Poset object into a Hasse Diagram object
+		if plot: #returns as a poset object if plot set to False
+			HH=PP.hasse_diagram() #turns the Poset object into a Hasse Diagram object
 
-		#if colored, colors each edge by the element the edge represents
-		if colored:
-			colors=['red','mediumblue','forestgreen','darkmagenta','teal','orangered','olive','deeppink','gold','deepskyblue','indigo']
-			count = -1
-			for mm in gens[1:]:
-				count += 1
-				for nn in Comb[1]:
-					if ((nn[1]-nn[0])%mult)==(mm%mult):
-						HH.set_edge_label(nn[0],nn[1],count%11)
-			colored={ii:colors[ii] for ii in [0..10]}
-		dd=KunzPosetCoordinates(NSG,shift,verbose) #determines the coordinates for each vertex in the poset
-		
+			#if colored, colors each edge by the element the edge represents
+			if colored:
+				colors=['red','mediumblue','forestgreen','darkmagenta','teal','orangered','olive','deeppink','gold','deepskyblue','indigo']
+				count = -1
+				for mm in gens[1:]:
+					count += 1
+					for nn in Comb[1]:
+						if ((nn[1]-nn[0])%mult)==(mm%mult):
+							HH.set_edge_label(nn[0],nn[1],count%11)
+				colored={ii:colors[ii] for ii in [0..10]}
+			dd=KunzPosetCoordinates(NSG,shift,verbose) #determines the coordinates for each vertex in the poset
+
 	#creates an apery poset
 	else:
 		covers=[]
@@ -715,22 +717,25 @@ def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=
 		Comb[1]=covers
 		#Comb[1]=coversOrdered
 		PP=Poset(Comb,cover_relations=True)
-		HH=PP.hasse_diagram() #turns the Poset object into a Hasse Diagram object
+		if plot:
+			HH=PP.hasse_diagram() #turns the Poset object into a Hasse Diagram object
 
-		#if colored, colors each edge by the element the edge represents
-		if colored:
-			colors=['red','mediumblue','forestgreen','darkmagenta','teal','orangered','olive','deeppink','gold','deepskyblue','indigo']
-			count = -1
-			for mm in gens[1:]:
-				count += 1
-				for nn in Comb[1]:
-					if ((nn[1]-nn[0]))==(mm):
-						HH.set_edge_label(nn[0],nn[1],count%11)
-			colored={ii:colors[ii] for ii in [0..10]}
-			
-		#determines the coordinates for each vertex in the poset
-		dd=AperyPosetCoordinates(NSG,shift,verbose)
+			#if colored, colors each edge by the element the edge represents
+			if colored:
+				colors=['red','mediumblue','forestgreen','darkmagenta','teal','orangered','olive','deeppink','gold','deepskyblue','indigo']
+				count = -1
+				for mm in gens[1:]:
+					count += 1
+					for nn in Comb[1]:
+						if ((nn[1]-nn[0]))==(mm):
+							HH.set_edge_label(nn[0],nn[1],count%11)
+				colored={ii:colors[ii] for ii in [0..10]}
+
+			#determines the coordinates for each vertex in the poset
+			dd=AperyPosetCoordinates(NSG,shift,verbose)
+
 	if verbose:
-			print 'cover relations: '+str(covers)    
-	return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize) #plots the poset
-
+		print 'cover relations: '+str(covers)
+	if plot:
+		return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize)  #plots the pose
+	return PP #returns poset type object if plot set to False
