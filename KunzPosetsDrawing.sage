@@ -634,7 +634,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False):
 	return coord
 
 
-def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True):
+def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True):
 	'''
 	Creates the Kunz or Apery Poset of a Numerical Semigroup Structured by the Minimal Elements.
 	

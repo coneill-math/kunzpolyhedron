@@ -15,6 +15,6 @@ The following code fragment gives an overview of how to use some of the basic fu
 
 	load('/PATH_TO_FILES/NumericalSemigroup.sage')
 	load('/PATH_TO_FILES/KunzPosets.sage')
-	NSG_Poset([6,9,20])
-	NSG_Poset([5,6,9])
+	PlotKunzPoset([6,9,20])
+	PlotKunzPoset([5,6,9])
 
