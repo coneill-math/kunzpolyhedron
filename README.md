@@ -1,7 +1,7 @@
 # kunzpolyhedron
 Written by Christopher O'Neill and Christopher Preuss.  
 
-Provides functions for working with the [Kunz polyhedron](https://arxiv.org/abs/1903.04342) in the computer algebra system [Sage](http://sagemath.org/) that adds functionality for working with Leamer monoids.  Internally, it uses the [GAP](http://www.gap-system.org/) package [numericalsgps](http://www.gap-system.org/Packages/numericalsgps.html) via the [NumericalSemigroup](https://github.com/coneill-math/numsgps-sage) class.  
+Provides functions for working with the [Kunz polyhedron](https://arxiv.org/abs/1903.04342) in the computer algebra system [Sage](http://sagemath.org/).  Internally, it uses the [GAP](http://www.gap-system.org/) package [numericalsgps](http://www.gap-system.org/Packages/numericalsgps.html) via the [NumericalSemigroup](https://github.com/coneill-math/numsgps-sage) class.  
 
 Please note that this is an *alpha version* and subject to change without notice.  
 

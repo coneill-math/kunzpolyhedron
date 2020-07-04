@@ -109,7 +109,7 @@ def RayCoordinates(mult,gens,chains,verbose=False):
 	for ii in coord[1:]:
 		factors=FactorizeCoordinates(ii,gens,chains,mult) #gets the list of factorizations for a particular element
 		if verbose:
-			print 'factorizations of '+str(ii)+': '+str(factors)
+			print('factorizations of '+str(ii)+': '+str(factors))
 		length=len(factors)*1.0
 		
 		#checks if the individual element is graded by counting the number of factors in each factorization and checking for uniqueness
@@ -140,7 +140,7 @@ def RayCoordinates(mult,gens,chains,verbose=False):
 			averageFact.append(maxHeight)
 			dict1[int(ii)]=[tuple(averageFact)]
 	if verbose:
-		print 'average factorizations of elements: '+str(dict1)
+		print('average factorizations of elements: '+str(dict1))
 	
 	
 	#generates the list of vector directions for the non-trivial minimum generators to base the poset design
@@ -158,7 +158,7 @@ def RayCoordinates(mult,gens,chains,verbose=False):
 			dict2[nn]=(nn-(leng+1)/2,1.0)
 		dict2[(leng+1)/2]=(0.0,1.0)
 	if verbose:
-		print 'direction of generators: '+str(dict2)
+		print('direction of generators: '+str(dict2))
 	
 	#determines where to place each element in the poset from the average factorization of each element as well as the vector directions of non-trivial minimum generators
 	coords={0:(0,0)}
@@ -203,7 +203,7 @@ def RayCoordinates(mult,gens,chains,verbose=False):
 					coords[nn]=tuple(tempCoord2)
 	
 	if verbose:
-		print 'coordinates of elements in poset: '+str(coords)
+		print('coordinates of elements in poset: '+str(coords))
 	return coords
 
 
@@ -219,7 +219,7 @@ def RayEquations(ray,count,verbose=False):
 	mult=len(ray) #the dimension corresponding to the Kunz polyhedron that the ray lives in
 	ieqn=KunzPolyEqn(mult+1) #gets the list of definining inequalities for the Kunz polyhedron
 	if verbose and count==1:
-		print 'Defining Inequalities of Kunz Polyhedra: '+str(ieqn)
+		print('Defining Inequalities of Kunz Polyhedra: '+str(ieqn))
 		
 	#creates a list for the vertex of the Kunz polyhedron
 	vtx=[]
@@ -244,7 +244,7 @@ def RayEquations(ray,count,verbose=False):
 	#####defining inequalities of the Kunz polyhedron
 	
 	if verbose:
-		print 'equations satisifying equality of ray '+str(count)+': '+str(eqn)
+		print('equations satisifying equality of ray '+str(count)+': '+str(eqn))
 	
 	return eqn
 
@@ -286,7 +286,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False):
 			tempEqn=RayEquations(rr[0:m],count,verbose)
 			permEqn=[eqn for eqn in permEqn if eqn in tempEqn]
 		if verbose:
-			print 'common zeros in indices: '+str(commonzeros)
+			print('common zeros in indices: '+str(commonzeros))
 	else: #handles the case if the rays correspond to a poset for the dimesnion they live in
 		flag=False
 		m=len(rays[0])
@@ -296,7 +296,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False):
 			tempEqn=RayEquations(rr,count,verbose)
 			permEqn=[eqn for eqn in permEqn if eqn in tempEqn]
 	if verbose:
-		print 'eqns: ' + str(permEqn)
+		print('eqns: ' + str(permEqn))
 		
 	#generates the list of relations for the entire poset based off the equations satisfied with equality
 	covers=[]
@@ -311,7 +311,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False):
 		for kk in pos:
 			covers.append([kk,neg])
 	if verbose:
-		print 'general relations: '+str(covers)
+		print('general relations: '+str(covers))
 		
 	#finds the list of non-trivial minimal generators for the poset based off which elements do not cover any other element (excluding zero)
 	gens=[1..m]
@@ -322,7 +322,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False):
 	#for the list of relations between elements, finds which are cover relations due to their difference being a generator
 	realcovers=[]
 	if verbose:
-		print 'gens: '+str(gens)
+		print('gens: '+str(gens))
 	for dd in covers:
 		if ((dd[1]-dd[0])%(m+1)) in gens:
 			realcovers.append((dd[0],dd[1]))
@@ -332,7 +332,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False):
 	comb[0]=[1..m]
 	comb[1]=realcovers
 	if verbose:
-		print 'cover relations: '+str(comb[1])
+		print('cover relations: '+str(comb[1]))
 		
 	#generates a poset using the default sage method for posets
 	PP= Poset(comb, cover_relations = True)
@@ -361,7 +361,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False):
 		
 	#if the rays corresponds to a poset of a lower dimension than the Kunz polyhedron given, prints a message stating that fact
 	if flag:
-		print 'poset comes from lower dimesional Kunz polyhedra due to common zeroes in rays'
+		print('poset comes from lower dimesional Kunz polyhedra due to common zeroes in rays')
 	return HH.plot(pos=cords,figsize=fsize,color_by_label=colored)
 
 
@@ -387,7 +387,7 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False):
 	for ii in [0..lengs]:
 		factorization=NSG.Factorizations(Ap[int(ii)])
 		if verbose:
-			print 'factorization of '+str(ii)+': '+str(factorization)
+			print('factorization of '+str(ii)+': '+str(factorization))
 		
 		#checks if a particular element of the poset is graded
 		flag=True
@@ -416,7 +416,7 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False):
 			averageFact.append(maxHeight)
 			dict1[int(ii)]=[tuple(averageFact)]
 	if verbose:
-		print 'average factorizations: '+str(dict1)
+		print('average factorizations: '+str(dict1))
 	
 	#finds the vector directions for each of the non-trivial minimum generators
 	dict2={0:(0,0)}
@@ -449,7 +449,7 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False):
 				dict2[nn]=(nn-(leng+1)/2,1.0)
 			dict2[(leng+1)/2]=(0.0,1.0)
 	if verbose:
-		print 'generator directions: '+str(dict2)
+		print('generator directions: '+str(dict2))
 
 	#determines the final coordinates for each element of the poset based of the vector directions for the generators
 	coord={}
@@ -494,7 +494,7 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False):
 					coord[mm]=tuple(tempCoord1)
 					coord[nn]=tuple(tempCoord2)
 	if verbose:
-		print 'coordinates of elements in poset: '+str(coord)
+		print('coordinates of elements in poset: '+str(coord))
 
 	return coord
 
@@ -521,7 +521,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False):
 	for ii in Ap:
 		factorization=NSG.Factorizations(ii)
 		if verbose:
-			print 'factorization of '+str(ii)+': '+str(factorization)
+			print('factorization of '+str(ii)+': '+str(factorization))
 			
 		#checks if a particular element of the poset is graded
 		flag=True
@@ -550,7 +550,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False):
 			averageFact.append(maxHeight)
 			dict1[int(ii)]=[tuple(averageFact)]
 	if verbose:
-		print 'average factorizations: '+str(dict1)
+		print('average factorizations: '+str(dict1))
 	
 	#finds the vector directions for each of the non-trivial minimum generators
 	dict2={0:(0,0)}
@@ -586,7 +586,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False):
 	#determines the final coordinates for each element of the poset based of the vector directions for the generators
 	coord={}
 	if verbose:
-		print 'generator directions: '+str(dict2)
+		print('generator directions: '+str(dict2))
 	
 	for jj in Ap:
 		count=0
@@ -629,7 +629,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False):
 					coord[mm]=tuple(tempCoord1)
 					coord[nn]=tuple(tempCoord2)
 	if verbose:
-		print 'coordinates of elements in poset: '+str(coord)
+		print('coordinates of elements in poset: '+str(coord))
 
 	return coord
 
@@ -654,7 +654,7 @@ def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=
 	mult=min(gens) #gets the multiplicity of the numerical semigroup
 	Ap=sorted(NSG.AperySet(mult)) #creates and sorts the Apery Set of the numerical semigroup
 	if verbose:
-		print 'Apery Set (Sorted From Smallest to Largest, Not By Residue): '+str(Ap)
+		print('Apery Set (Sorted From Smallest to Largest, Not By Residue): '+str(Ap))
 	
 	#creates the Kunz poset
 	if kunz:
@@ -671,7 +671,7 @@ def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=
 		#    for jj in covers:
 		#        if ((jj[1]-jj[0])%mult)==(ii%mult):
 		#            coversOrdered.append(jj)
-		#print coversOrdered
+		#print(coversOrdered)
 
 		#creates the poset based off the Apery Set modulo the multiplicty and the cover relations
 		Comb=2*[0]
@@ -709,7 +709,7 @@ def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=
 		#    for jj in covers:
 		#        if ((jj[1]-jj[0])%mult)==(ii%mult):
 		#            coversOrdered.append(jj)
-		#print coversOrdered
+		#print(coversOrdered)
 
 		#creates the poset based off the Apery Set and the cover relations
 		Comb=2*[0]
@@ -735,7 +735,7 @@ def NSG_Poset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=
 			dd=AperyPosetCoordinates(NSG,shift,verbose)
 
 	if verbose:
-		print 'cover relations: '+str(covers)
+		print('cover relations: '+str(covers))
 	if plot:
 		return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize)  #plots the pose
 	return PP #returns poset type object if plot set to False
