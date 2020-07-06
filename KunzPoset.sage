@@ -97,6 +97,12 @@ class KunzPoset:
     # When someone puts object in a print statement
     def __repr__(self):
         return "KunzPoset with multiplicity %d." % self.m
+    
+    def __eq__(self, P):
+        return self.poset == P.poset
+    
+    def __hash__(self):
+        return hash(self.poset)
 
     def __generate_cover_relations(self):
         if (hasattr(self, "kunz_coords")):
