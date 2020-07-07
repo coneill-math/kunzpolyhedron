@@ -6,7 +6,7 @@ Provides functions for working with the [Kunz posets](https://arxiv.org/abs/1912
 Please note that this is an *alpha version* and subject to change without notice.  
 
 ## License
-numsgpsalg is released under the terms of the [MIT license](https://tldrlegal.com/license/mit-license).  The MIT License is simple and easy to understand and it places almost no restrictions on what you can do with this software.
+This software is released under the terms of the [MIT license](https://tldrlegal.com/license/mit-license).  The MIT License is simple and easy to understand and it places almost no restrictions on what you can do with this software.
 
 ## Usage
 To use all features of this class, you must first install [numsgps-sage](https://github.com/coneill-math/numsgps-sage).  Next, simply place `KunzPosets.sage` in the same directory as `NumericalSemigroup.sage`.  
