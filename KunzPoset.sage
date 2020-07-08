@@ -97,10 +97,10 @@ class KunzPoset:
     # When someone puts object in a print statement
     def __repr__(self):
         return "KunzPoset with multiplicity %d." % self.m
-    
+
     def __eq__(self, P):
         return self.poset == P.poset
-    
+
     def __hash__(self):
         return hash(self.poset)
 
@@ -379,3 +379,14 @@ class KunzPoset:
         multiplicity = len(hyperplane_desc[0]) + 1
         return KunzPoset(m=multiplicity, hyperplane_desc=hyperplane_desc)
 
+    # @staticmethod
+    # def FaceLatticeFromNormaliz(m, face_lattice_file_path='data.fac'):
+    #     file_name = face_lattice_file_path
+    #     f = open(file_name, 'r')
+    #     lines = f.readlines()[3:]
+    #     f.close()
+
+    #     equalities = []
+    #     for line in lines:
+    #         equalities.append(line.split()[0])
+    #     return(equalities)
