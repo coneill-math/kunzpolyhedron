@@ -356,14 +356,24 @@ class KunzPoset:
         atoms = self.atoms
         poset = self.poset
         trucks = []
+        modulus_fails = 0
+        total_attempts = 0
         
         if self.Dimension() == len(atoms):
             while len(trucks)<how_many:
+                total_attempts = total_attempts + 1
                 temp_gens = [m]
                 for ii in atoms:
                     noop= random.randint(min_kunz_coord , max_kunz_coord)*m + ii
                     temp_gens.append(noop)
-                if gcd(temp_gens)== 1 and sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
+                if not sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
+                    modulus_fails = modulus_fails + 1
+                    if modulus_fails >= 1000 and modulus_fails == total_attempts:
+                        print("Likely contains no semigroups")
+                        return []
+                    continue
+                    
+                if gcd(temp_gens) == 1:
                     kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
                     if kpp == poset:
                         trucks.append(temp_gens)
@@ -371,6 +381,7 @@ class KunzPoset:
             pres = matrix(QQ, self.BettiMatrix())
             pres.echelonize()
             while len(trucks) < how_many:
+                total_attempts = total_attempts + 1
                 temp = [0]*len(atoms)
                 temp_gens = [m]
                 for i in pres.nonpivots():
@@ -383,7 +394,13 @@ class KunzPoset:
                 for jj in othervars: 
                     temp_gens.append(int(-1*jj))
                 # print(temp_gens)
-                if gcd(temp_gens)== 1 and all(x>0 for x in temp_gens) and sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
+                if not sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
+                    modulus_fails = modulus_fails + 1
+                    if modulus_fails >= 1000 and modulus_fails == total_attempts:
+                        print("Likely contains no semigroups")
+                        return []
+                    continue
+                if gcd(temp_gens) == 1 and all(x>0 for x in temp_gens):
                     kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
                     #kpp.show()
                     if kpp == poset:
