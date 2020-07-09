@@ -350,7 +350,50 @@ class KunzPoset:
             self.__dimension = len(self.atoms) - self.__betti_matrix.rank()
         
         return self.__dimension
-
+    
+    def FindSemigroups(self, max_kunz_coord, how_many, min_kunz_coord = 2):
+        m = self.m
+        atoms = self.atoms
+        poset = self.poset
+        trucks = []
+        
+        if self.Dimension() == len(atoms):
+            while len(trucks)<how_many:
+                temp_gens = [m]
+                for ii in atoms:
+                    noop= random.randint(min_kunz_coord , max_kunz_coord)*m + ii
+                    temp_gens.append(noop)
+                if gcd(temp_gens)== 1 and sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
+                    kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
+                    if kpp == poset:
+                        trucks.append(temp_gens)
+        else:
+            pres = matrix(QQ, self.BettiMatrix())
+            pres.echelonize()
+            while len(trucks) < how_many:
+                temp = [0]*len(atoms)
+                temp_gens = [m]
+                for i in pres.nonpivots():
+                    boop = random.randint(min_kunz_coord , max_kunz_coord)*m + atoms[i]
+                    temp[i] = boop
+                    temp_gens.append(int(boop))
+                vec = vector(temp)
+                othervars = pres*vec
+                # print(othervars)
+                for jj in othervars: 
+                    temp_gens.append(int(-1*jj))
+                # print(temp_gens)
+                if gcd(temp_gens)== 1 and all(x>0 for x in temp_gens) and sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
+                    kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
+                    #kpp.show()
+                    if kpp == poset:
+                        trucks.append(temp_gens)
+                    else:
+                        continue
+                else:
+                    continue
+        return trucks
+    
     '''
         This static method expects there to be a data.out file in the same
         directory called 'data.out'. You can change the file_path parameter
