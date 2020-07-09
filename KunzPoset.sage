@@ -204,7 +204,7 @@ class KunzPoset:
         return FinitePoset(DiGraph(self.cover_relations).transitive_reduction())
 
     def Face(self):
-        if (not hasattr(self, "__face")):
+        if (not hasattr(self, "_KunzPoset__face")):
             self.__face = Polyhedron(self.hyperplane_desc)
         return self.__face
 
@@ -242,7 +242,7 @@ class KunzPoset:
         self.__factorizations = factorizations
 
     def Factorization(self, element = None):
-        if (not hasattr(self, "__factorizations")):
+        if (not hasattr(self, "_KunzPoset__factorizations")):
             self.__make_factorizations()
         return self.__factorizations[element] if element is not None else \
                 self.__factorizations
@@ -252,7 +252,6 @@ class KunzPoset:
         return '0b' + ''.join(['1' if num > 0 else '0' for num in num_list])
 
     def __find_num_bettis_graph(self, VERBOSE = False):
-
         bettis = {}
 
         for element, factorization in self.__factorizations.items():
@@ -319,16 +318,16 @@ class KunzPoset:
         self.__make_relation_matrix()
 
     def BettiElements(self):
-        if (not hasattr(self, '__factorizations')):
+        if (not hasattr(self, '_KunzPoset__factorizations')):
             self.__make_factorizations()
-        if (not hasattr(self, '__bettis')):
+        if (not hasattr(self, '_KunzPoset__bettis')):
             self.__find_num_bettis_graph()
         return self.__bettis
 
     def BettiMatrix(self):
-        if (not hasattr(self, '__factorizations')):
+        if (not hasattr(self, '_KunzPoset__factorizations')):
             self.__make_factorizations()
-        if (not hasattr(self, '__bettis')):
+        if (not hasattr(self, '_KunzPoset__bettis')):
             self.__find_num_bettis_graph()
 
         return self.__betti_matrix
@@ -342,12 +341,15 @@ class KunzPoset:
         self.__betti_matrix = matrix(betti_matrix)
 
     def Dimension(self):
-        if (not hasattr(self, '__factorizations')):
-            self.__make_factorizations()
-        if (not hasattr(self, '__bettis')):
-            self.__find_num_bettis_graph()
+        if (not hasattr(self, '_KunzPoset__dimension')):
+            if (not hasattr(self, '_KunzPoset__factorizations')):
+                self.__make_factorizations()
+            if (not hasattr(self, '_KunzPoset__bettis')):
+                self.__find_num_bettis_graph()
 
-        return len(self.atoms) - self.__betti_matrix.rank()
+            self.__dimension = len(self.atoms) - self.__betti_matrix.rank()
+        
+        return self.__dimension
 
     '''
         This static method expects there to be a data.out file in the same
@@ -358,7 +360,20 @@ class KunzPoset:
         should be used to build the KunzPoset.
     '''
     @staticmethod
-    def BuildFromNormaliz(face_desc, hplane_file_path='data.out'):
+    def BuildFromNormaliz(face_desc, hyperplane_list=None, hplane_file_path='data.out'):
+        if hyperplane_list == None:
+            hyperplane_list = KunzPoset.ReadHyperplanesFromNormaliz(hplane_file_path)
+        
+        hyperplane_desc = []
+        for index, equality in enumerate(face_desc):
+            if(int(equality)):
+                hyperplane_desc.append(hyperplane_list[index])
+
+        multiplicity = len(hyperplane_list[0]) + 1
+        return KunzPoset(m=multiplicity, hyperplane_desc=hyperplane_desc)
+
+    @staticmethod
+    def ReadHyperplanesFromNormaliz(hplane_file_path='data.out'):
         hyperplane_list = []
 
         f = open(hplane_file_path, 'r')
@@ -370,23 +385,31 @@ class KunzPoset:
             if re.match(check, line) is not None:
                 ineq = list(map(int, line.split()))
                 hyperplane_list.append(ineq)
+        
+        return hyperplane_list
 
-        hyperplane_desc = []
-        for index, equality in enumerate(face_desc):
-            if(int(equality)):
-                hyperplane_desc.append(hyperplane_list[index])
-
-        multiplicity = len(hyperplane_desc[0]) + 1
-        return KunzPoset(m=multiplicity, hyperplane_desc=hyperplane_desc)
-
-    # @staticmethod
-    # def FaceLatticeFromNormaliz(m, face_lattice_file_path='data.fac'):
-    #     file_name = face_lattice_file_path
-    #     f = open(file_name, 'r')
-    #     lines = f.readlines()[3:]
-    #     f.close()
-
-    #     equalities = []
-    #     for line in lines:
-    #         equalities.append(line.split()[0])
-    #     return(equalities)
+    @staticmethod
+    def ReadFacesFromNormaliz(face_lattice_file_path='data.fac', hplane_file_path='data.out', faceindices=None):
+        hyperplane_list = KunzPoset.ReadHyperplanesFromNormaliz(hplane_file_path)
+        multiplicity = len(hyperplane_list[0]) + 1
+        faces = []
+        
+        file_name = face_lattice_file_path
+        with open(file_name, 'r') as f:
+            f.readline()
+            f.readline()
+            f.readline()
+            
+            for (curindex, line) in enumerate(f):
+                if faceindices != None and curindex not in faceindices:
+                    continue
+                
+                (face, d) = tuple(line.split())
+                try:
+                    P = KunzPoset.BuildFromNormaliz(face, hyperplane_list)
+                    P.__dimension = multiplicity - 1 - int(d)
+                    faces.append(P)
+                except Exception as e:
+                    pass
+        
+        return faces
