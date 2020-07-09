@@ -96,7 +96,7 @@ class KunzPoset:
 
     # When someone puts object in a print statement
     def __repr__(self):
-        return "KunzPoset with multiplicity %d." % self.m
+        return "KunzPoset with multiplicity %d" % self.m
 
     def __eq__(self, P):
         return self.poset == P.poset
@@ -386,7 +386,7 @@ class KunzPoset:
         return hyperplane_list
 
     @staticmethod
-    def ReadFacesFromNormaliz(face_lattice_file_path='data.fac', hplane_file_path='data.out', faceindices=None):
+    def ReadFacesFromNormaliz(face_lattice_file_path='data.fac', hplane_file_path='data.out', faceindices=None, dimension=None):
         hyperplane_list = KunzPoset.ReadHyperplanesFromNormaliz(hplane_file_path)
         multiplicity = len(hyperplane_list[0]) + 1
         M = max(faceindices) if faceindices != None else oo
@@ -399,7 +399,10 @@ class KunzPoset:
             f.readline()
             f.readline()
             
-            for (curindex, line) in enumerate(f):
+            curindex = -1
+            for line in f:
+                curindex = curindex + 1
+                
                 if curindex > M:
                     break
                 
@@ -407,9 +410,15 @@ class KunzPoset:
                     continue
                 
                 (face, d) = tuple(line.split())
+                dim = multiplicity - 1 - int(d)
+                
+                if dimension != None and dim != dimension:
+                    curindex = curindex - 1
+                    continue
+                
                 try:
                     P = KunzPoset.BuildFromNormaliz(face, hyperplane_list)
-                    P.__dimension = multiplicity - 1 - int(d)
+                    P.__dimension = dim
                     faces.append(P)
                 except ValueError as e:
                     if str(e) == "Hasse diagram contains cycles":
