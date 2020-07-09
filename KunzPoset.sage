@@ -375,16 +375,13 @@ class KunzPoset:
     @staticmethod
     def ReadHyperplanesFromNormaliz(hplane_file_path='data.out'):
         hyperplane_list = []
+        with open(hplane_file_path, 'r') as f:
+            check = re.compile(r'^(\s(-|\s)\d)+$')
 
-        f = open(hplane_file_path, 'r')
-        lines = f.readlines()
-        f.close()
-        check = re.compile(r'^(\s(-|\s)\d)+$')
-
-        for line in lines:
-            if re.match(check, line) is not None:
-                ineq = list(map(int, line.split()))
-                hyperplane_list.append(ineq)
+            for line in f:
+                if re.match(check, line) is not None:
+                    ineq = list(map(int, line.split()))
+                    hyperplane_list.append(ineq)
         
         return hyperplane_list
 
@@ -409,7 +406,10 @@ class KunzPoset:
                     P = KunzPoset.BuildFromNormaliz(face, hyperplane_list)
                     P.__dimension = multiplicity - 1 - int(d)
                     faces.append(P)
-                except Exception as e:
-                    pass
+                except ValueError as e:
+                    if str(e) == "Hasse diagram contains cycles":
+                        pass
+                    else:
+                        raise
         
         return faces
