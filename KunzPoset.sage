@@ -374,10 +374,10 @@ class KunzPoset:
 
     @staticmethod
     def ReadHyperplanesFromNormaliz(hplane_file_path='data.out'):
+        check = re.compile(r'^(\s(-|\s)\d)+$')
         hyperplane_list = []
+        
         with open(hplane_file_path, 'r') as f:
-            check = re.compile(r'^(\s(-|\s)\d)+$')
-
             for line in f:
                 if re.match(check, line) is not None:
                     ineq = list(map(int, line.split()))
@@ -389,6 +389,8 @@ class KunzPoset:
     def ReadFacesFromNormaliz(face_lattice_file_path='data.fac', hplane_file_path='data.out', faceindices=None):
         hyperplane_list = KunzPoset.ReadHyperplanesFromNormaliz(hplane_file_path)
         multiplicity = len(hyperplane_list[0]) + 1
+        M = max(faceindices) if faceindices != None else oo
+        
         faces = []
         
         file_name = face_lattice_file_path
@@ -398,6 +400,9 @@ class KunzPoset:
             f.readline()
             
             for (curindex, line) in enumerate(f):
+                if curindex > M:
+                    break
+                
                 if faceindices != None and curindex not in faceindices:
                     continue
                 
