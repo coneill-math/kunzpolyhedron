@@ -1,5 +1,7 @@
 from sage.combinat.posets.posets import FinitePoset
 import re
+import heapq, queue
+
 
 class KunzPoset:
     """
@@ -39,50 +41,61 @@ class KunzPoset:
             is our KunzPoset
     """
 
-    def __init__(self, m, cover_relations = None, hyperplane_desc = None, \
+    def __init__(self, m = None, cover_relations = None, hyperplane_desc = None, \
             semigroup_gens = None, numerical_semigroup = None, apery_set = None, \
-            kunz_coordinates = None):
+            kunz_coordinates = None, poset = None):
         """
         ----------
         Parameters
         ----------
         """
 
-        # Set the multiplicity for our KunzPoset
-        self.m = m
-
         # Assuming cover_relations is list of lists
         # Implementation for dictionary later
         if (cover_relations is not None):
+            if m is None:
+                raise ValueError('You did not pass the multiplicity for the KunzPoset.')
             self.cover_relations = [(i,j) for (i,j,k) in \
                     DiGraph(cover_relations).transitive_reduction().edges()]
             self.hyperplane_desc = self.__generate_h_desc()
 
         # Hyperplane description will be a list of lists
         elif (hyperplane_desc is not None):
-            self.hyperplane_desc = hyperplane_desc
+            if m is None:
+                raise ValueError('You did not pass the multiplicity for the KunzPoset.')
+            self.hyperplane_desc = list(hyperplane_desc)
             self.cover_relations = self.__generate_cover_relations()
 
         # This should just be a list or a tuple
         elif (semigroup_gens is not None):
-            self.semigroup_gens = semigroup_gens
+            self.m = min(semigroup_gens)
+            self.semigroup_gens = list(semigroup_gens)
             self.cover_relations = self.__generate_cover_relations()
             self.hyperplane_desc = self.__generate_h_desc()
 
         elif (numerical_semigroup is not None):
+            self.m = min(numerical_semigroup.gens)
             self.S = numerical_semigroup
             self.semigroup_gens = self.S.gens
             self.cover_relations = self.__generate_cover_relations()
             self.hyperplane_desc = self.__generate_h_desc()
 
         elif (apery_set is not None):
-            self.apery_set = apery_set
+            self.m = len(apery_set)
+            self.apery_set = list(apery_set)
             self.cover_relations = self.__generate_cover_relations()
             self.hyperplane_desc = self.__generate_h_desc()
 
         elif (kunz_coords is not None):
-            self.kunz_coords = kunz_coords
+            self.m = len(kunz_coordinates) + 1
+            self.kunz_coords = list(kunz_coords)
             self.cover_relations = self.__generate_cover_relations()
+            self.hyperplane_desc = self.__generate_h_desc()
+
+        elif (poset is not None):
+            self.m = len(poset)
+            self.poset = poset
+            self.cover_relations = poset.cover_relations()
             self.hyperplane_desc = self.__generate_h_desc()
 
         else:
@@ -188,16 +201,16 @@ class KunzPoset:
                 full_relations.append(full_relation)
                 relations.pop(0)
 
-            h_desc = []
+        h_desc = []
 
-            for full_relation in full_relations:
-                ieq = (self.m - 1) * [0]
-                ieq[full_relation[0] - 1] += 1
-                ieq[full_relation[1] - 1] += 1
-                ieq[full_relation[2] - 1] = -1
-                h_desc.append(ieq)
+        for full_relation in full_relations:
+            ieq = (self.m - 1) * [0]
+            ieq[full_relation[0] - 1] += 1
+            ieq[full_relation[1] - 1] += 1
+            ieq[full_relation[2] - 1] = -1
+            h_desc.append(ieq)
 
-            return h_desc
+        return h_desc
 
     # generating the poset
     def __generate_poset(self):
@@ -351,6 +364,127 @@ class KunzPoset:
         
         return self.__dimension
     
+    def OuterElementFactorizationSets(self, upper_factorizations):
+        # TODO: build poset too
+        factlistsbyfacts = {}
+        allfacts = queue.Queue()
+        
+        for p in self.poset:
+            factlist = [list(sorted([tuple(f) for f in self.Factorization(p)])), []]
+            
+            for f in factlist[0]:
+                factlistsbyfacts[tuple(f)] = factlist
+                for i in range(len(f)):
+                    f2 = list(f)
+                    f2[i] = f2[i] + 1
+                    allfacts.put(tuple(f2))
+        
+        upperfacts = set(upper_factorizations)
+        
+        def parsenext(f):
+            factlist = [[f], []]
+            gensbacked = []
+            runagain = True
+            
+            while runagain:
+                runagain = False
+                for i in range(len(f)):
+                    if i in gensbacked:
+                        continue
+                    
+                    for ff in factlist[0]:
+                        if ff[i] > 0:
+                            break
+                    
+                    if ff[i] == 0:
+                        continue
+                    
+                    runagain = True
+                    gensbacked = gensbacked + [i]
+                    
+                    backone = list(ff)
+                    backone[i] = backone[i] - 1
+                    
+                    if tuple(backone) not in factlistsbyfacts:
+                        return []
+                    
+                    for j in [0,1]:
+                        for ff2 in factlistsbyfacts[tuple(backone)][j]:
+                            ff3 = list(ff2)
+                            ff3[i] = ff3[i] + 1
+                            
+                            factlist[j].append(tuple(ff3))
+            
+            factlist[0] = list(set(factlist[0]))
+            
+            elem = sum([a*fi for (a,fi) in zip(self.atoms,f)]) % self.m
+            if list(f) not in self.Factorization(elem):
+                factlist[1] = factlist[1] + [tuple(f2) for f2 in self.Factorization(elem)]
+            
+            factlist[1] = list(set(factlist[1]))
+            
+            return factlist
+        
+        while len(upperfacts) > 0:
+            f = allfacts.get()
+            
+            if f in factlistsbyfacts:
+                continue
+            
+            if f not in factlistsbyfacts:
+                factlist = parsenext(f)
+                
+                if factlist == []:
+                    continue
+                
+                for ff in factlist[0]:
+                    factlistsbyfacts[ff] = factlist
+                    if ff in upperfacts:
+                        upperfacts.remove(ff)
+            
+            # add next things to try
+            for i in range(len(f)):
+                f2 = list(f)
+                f2[i] = f2[i] + 1
+                allfacts.put(tuple(f2))
+        
+        ret = {p:[] for p in self.poset}
+        for f in factlistsbyfacts:
+            unifiedfacts = [tuple([0] + list(ff)) for ff in factlistsbyfacts[f][0]] + [tuple([1] + list(ff)) for ff in factlistsbyfacts[f][1]]
+            factlistsbyfacts[f][0].clear()
+            factlistsbyfacts[f][1].clear()
+            
+            p = sum([a*fi for (a,fi) in zip(self.atoms,f)]) % self.m
+            ret[p].append(tuple(unifiedfacts))
+        
+        ret = {p:list(set(ret[p])) for p in ret}
+        return ret
+    
+    def OuterBettiFactorizationSets(self):
+        upper_factorizations = [tuple([fi+1 for fi in f]) for p in self.poset.maximal_elements() for f in self.Factorization(p)]
+        upper_factorizations = set(upper_factorizations)
+        
+        outerfacts = self.OuterElementFactorizationSets(upper_factorizations)
+        
+        ret = {d:[] for d in range(len(self.atoms))}
+        for p in outerfacts:
+            for factlist in outerfacts[p]:
+                sdc = SimplicialComplex(maximal_faces=[[i for i in range(len(f)) if f[i] > 0] for f in factlist], maximality_check=True)
+                hom = sdc.homology()
+                for d in range(len(hom)):
+                    if len(hom[d].gens()) > 0:
+                        ret[d] = ret[d] + [factlist]*len(hom[d].gens())
+        
+        return ret
+    
+    def OuterBettiElements(self):
+        outerbettifacts = self.OuterBettiFactorizationSets()
+        return {d:[sum([a*b for (a,b) in zip(self.atoms,factlist[0])])%self.m for factlist in outerbettifacts[d]] for d in range(len(self.atoms))}
+    
+    def Orbit(self):
+        m = self.m
+        return [KunzPoset(poset=self.poset.relabel([(i*u)%m for i in range(m)])) for u in range(1,m) if gcd(u,m) == 1]
+    
     def FindSemigroups(self, max_kunz_coord, how_many, min_kunz_coord = 2):
         m = self.m
         atoms = self.atoms
@@ -360,7 +494,7 @@ class KunzPoset:
         total_attempts = 0
         
         if self.Dimension() == len(atoms):
-            while len(trucks)<how_many:
+            while len(trucks) < how_many:
                 total_attempts = total_attempts + 1
                 temp_gens = [m]
                 for ii in atoms:
@@ -394,9 +528,9 @@ class KunzPoset:
                 for jj in othervars: 
                     temp_gens.append(int(-1*jj))
                 # print(temp_gens)
-                if not sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
+                if list(sorted([y%m for y in temp_gens])) != list(sorted([0] + atoms)):
                     modulus_fails = modulus_fails + 1
-                    if modulus_fails >= 1000 and modulus_fails == total_attempts:
+                    if modulus_fails >= 10000 and modulus_fails == total_attempts:
                         print("Likely contains no semigroups")
                         return []
                     continue
