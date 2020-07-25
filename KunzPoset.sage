@@ -55,6 +55,7 @@ class KunzPoset:
         if (cover_relations is not None):
             if m is None:
                 raise ValueError('You did not pass the multiplicity for the KunzPoset.')
+            self.m = m
             self.cover_relations = [(i,j) for (i,j,k) in \
                     DiGraph(cover_relations).transitive_reduction().edges()]
             self.hyperplane_desc = self.__generate_h_desc()
@@ -63,6 +64,7 @@ class KunzPoset:
         elif (hyperplane_desc is not None):
             if m is None:
                 raise ValueError('You did not pass the multiplicity for the KunzPoset.')
+            self.m = m
             self.hyperplane_desc = list(hyperplane_desc)
             self.cover_relations = self.__generate_cover_relations()
 
@@ -86,9 +88,9 @@ class KunzPoset:
             self.cover_relations = self.__generate_cover_relations()
             self.hyperplane_desc = self.__generate_h_desc()
 
-        elif (kunz_coords is not None):
+        elif (kunz_coordinates is not None):
             self.m = len(kunz_coordinates) + 1
-            self.kunz_coords = list(kunz_coords)
+            self.kunz_coords = list(kunz_coordinates)
             self.cover_relations = self.__generate_cover_relations()
             self.hyperplane_desc = self.__generate_h_desc()
 
@@ -352,6 +354,11 @@ class KunzPoset:
                 betti_matrix.append([rel for rel in relations])
 
         self.__betti_matrix = matrix(betti_matrix)
+    
+    def MinimalPresentation(self):
+        thematrix = self.BettiMatrix()
+        
+        return [[[(r if r >= 0 else 0) for r in row], [(-r if r <= 0 else 0) for r in row]] for row in thematrix.rows()]
 
     def Dimension(self):
         if (not hasattr(self, '_KunzPoset__dimension')):
@@ -364,25 +371,31 @@ class KunzPoset:
         
         return self.__dimension
     
-    def OuterElementFactorizationSets(self, upper_factorizations):
+    def __outerelementinfo(self, upper_factorizations):
         # TODO: build poset too
         factlistsbyfacts = {}
+        outerposetelements = []
+        outerposetcoverrelations = []
+        minpreselements = []
+        outerminrelations = []
         allfacts = queue.Queue()
         
-        for p in self.poset:
+        for p in self.poset.linear_extension():
             factlist = [list(sorted([tuple(f) for f in self.Factorization(p)])), []]
+            outerposetelements.append(factlist)
             
             for f in factlist[0]:
-                factlistsbyfacts[tuple(f)] = factlist
+                factlistsbyfacts[tuple(f)] = len(outerposetelements) - 1
                 for i in range(len(f)):
                     f2 = list(f)
                     f2[i] = f2[i] + 1
                     allfacts.put(tuple(f2))
         
-        upperfacts = set(upper_factorizations)
+        upperfacts = set([tuple(f) for f in upper_factorizations if tuple(f) not in factlistsbyfacts])
         
         def parsenext(f):
             factlist = [[f], []]
+            nextcovers = []
             gensbacked = []
             runagain = True
             
@@ -406,24 +419,27 @@ class KunzPoset:
                     backone[i] = backone[i] - 1
                     
                     if tuple(backone) not in factlistsbyfacts:
-                        return []
+                        return ([],[])
+                    
+                    cover = factlistsbyfacts[tuple(backone)]
+                    nextcovers.append(cover)
                     
                     for j in [0,1]:
-                        for ff2 in factlistsbyfacts[tuple(backone)][j]:
+                        for ff2 in outerposetelements[cover][j]:
                             ff3 = list(ff2)
                             ff3[i] = ff3[i] + 1
                             
                             factlist[j].append(tuple(ff3))
             
             factlist[0] = list(set(factlist[0]))
-            
-            elem = sum([a*fi for (a,fi) in zip(self.atoms,f)]) % self.m
-            if list(f) not in self.Factorization(elem):
-                factlist[1] = factlist[1] + [tuple(f2) for f2 in self.Factorization(elem)]
-            
             factlist[1] = list(set(factlist[1]))
             
-            return factlist
+            if len(factlist[1]) == 0:
+                elem = sum([a*fi for (a,fi) in zip(self.atoms,f)]) % self.m
+                if list(f) not in self.Factorization(elem):
+                    factlist[1] = factlist[1] + [tuple(f2) for f2 in self.Factorization(elem)]
+            
+            return (factlist, nextcovers)
         
         while len(upperfacts) > 0:
             f = allfacts.get()
@@ -431,16 +447,45 @@ class KunzPoset:
             if f in factlistsbyfacts:
                 continue
             
-            if f not in factlistsbyfacts:
-                factlist = parsenext(f)
-                
-                if factlist == []:
-                    continue
-                
-                for ff in factlist[0]:
-                    factlistsbyfacts[ff] = factlist
-                    if ff in upperfacts:
-                        upperfacts.remove(ff)
+            (factlist, nextcovers) = parsenext(f)
+            
+            if factlist == []:
+                continue
+            
+            newindex = len(outerposetelements)
+            isnew = True
+            isminpres = False
+            
+            # indicates this has a minmal relation
+            if all(cover < self.m for cover in nextcovers):
+                isminpres = True
+                outerminrelations.append([[0] + list(factlist[0][0]), [1] + list(factlist[1][0])])
+                for elem in minpreselements:
+                    leftfact = outerposetelements[elem][0][0]
+                    rightfact = factlist[0][0]
+                    thevec = vector([a-b for (a,b) in zip(leftfact, rightfact)])
+                    try:
+                        self.BettiMatrix().solve_left(thevec)
+                    except ValueError as e:
+                        continue
+                    
+                    # these are secretly the same element
+                    isnew = False
+                    newindex = elem
+                    outerposetelements[elem][0] = outerposetelements[elem][0] + factlist[0]
+                    break
+            
+            if isnew:
+                outerposetelements.append(factlist)
+            
+            if isnew and isminpres:
+                minpreselements.append(newindex)
+            
+            outerposetcoverrelations = outerposetcoverrelations + [(c, newindex) for c in nextcovers]
+            for ff in factlist[0]:
+                factlistsbyfacts[ff] = newindex
+                if ff in upperfacts:
+                    upperfacts.remove(ff)
             
             # add next things to try
             for i in range(len(f)):
@@ -448,38 +493,58 @@ class KunzPoset:
                 f2[i] = f2[i] + 1
                 allfacts.put(tuple(f2))
         
-        ret = {p:[] for p in self.poset}
-        for f in factlistsbyfacts:
-            unifiedfacts = [tuple([0] + list(ff)) for ff in factlistsbyfacts[f][0]] + [tuple([1] + list(ff)) for ff in factlistsbyfacts[f][1]]
-            factlistsbyfacts[f][0].clear()
-            factlistsbyfacts[f][1].clear()
-            
-            p = sum([a*fi for (a,fi) in zip(self.atoms,f)]) % self.m
-            ret[p].append(tuple(unifiedfacts))
+        for (op,factlist) in enumerate(outerposetelements):
+            unifiedfacts = [(0,) + ff for ff in factlist[0]]
+            unifiedfacts = unifiedfacts + [(1,) + ff for ff in factlist[1]]
+            outerposetelements[op] = unifiedfacts
         
-        ret = {p:list(set(ret[p])) for p in ret}
+        outerposet = Poset((list(range(len(outerposetelements))), outerposetcoverrelations), cover_relations=True)
+        
+        return (outerposet, outerposetelements, minpreselements, outerminrelations)
+    
+    def OuterElementPoset(self, upper_factorizations = None):
+        if upper_factorizations is None:
+            upper_factorizations = [tuple([fi+1 for fi in f]) for p in self.poset.maximal_elements() for f in self.Factorization(p)]
+        
+        (outerposet, outerposetelements, outerminpreselements, outerminrelations) = self.__outerelementinfo(upper_factorizations)
+        
+        return (outerposet, outerposetelements)
+    
+    def FullMinimalPresentation(self, kunz_coords = None):
+        upper_factorizations = [tuple([(fi+1 if i == j else fi) for (i,fi) in enumerate(self.Factorization(p)[0])]) for p in self.poset.maximal_elements() for j in range(len(self.atoms))]
+        
+        (outerposet, outerposetelements, outerminpreselements, outerminrelations) = self.__outerelementinfo(upper_factorizations)
+        
+        ret = [[[0] + p1, [0] + p2] for [p1,p2] in self.MinimalPresentation()]
+        
+        for [leftfact, rightfact] in outerminrelations:
+            if kunz_coords is not None:
+                rightfact[0] = sum([(b-c)*kunz_coords[a2-1] for (a2,b,c) in zip(self.atoms, leftfact[1:], rightfact[1:])])
+                rightfact[0] = rightfact[0] + sum([(b-c)*a2 for (a2,b,c) in zip([0]+self.atoms, leftfact, rightfact)])/self.m
+            
+            ret.append([leftfact, rightfact])
+        
         return ret
     
     def OuterBettiFactorizationSets(self):
         upper_factorizations = [tuple([fi+1 for fi in f]) for p in self.poset.maximal_elements() for f in self.Factorization(p)]
-        upper_factorizations = set(upper_factorizations)
         
-        outerfacts = self.OuterElementFactorizationSets(upper_factorizations)
+        (outerposet, outerfacts, outerminpreselements, outerminrelations) = self.__outerelementinfo(upper_factorizations)
         
         ret = {d:[] for d in range(len(self.atoms))}
-        for p in outerfacts:
-            for factlist in outerfacts[p]:
-                sdc = SimplicialComplex(maximal_faces=[[i for i in range(len(f)) if f[i] > 0] for f in factlist], maximality_check=True)
-                hom = sdc.homology()
-                for d in range(len(hom)):
-                    if len(hom[d].gens()) > 0:
-                        ret[d] = ret[d] + [factlist]*len(hom[d].gens())
+        for op in outerposet:
+            factlist = outerfacts[op]
+            sdc = SimplicialComplex(maximal_faces=[[i for i in range(len(f)) if f[i] > 0] for f in factlist], maximality_check=True)
+            hom = sdc.homology()
+            for d in range(len(hom)):
+                if len(hom[d].gens()) > 0:
+                    ret[d] = ret[d] + [factlist]*len(hom[d].gens())
         
         return ret
     
     def OuterBettiElements(self):
         outerbettifacts = self.OuterBettiFactorizationSets()
-        return {d:[sum([a*b for (a,b) in zip(self.atoms,factlist[0])])%self.m for factlist in outerbettifacts[d]] for d in range(len(self.atoms))}
+        return {d:list(sorted([sum([a*b for (a,b) in zip([0]+self.atoms,factlist[0])])%self.m for factlist in outerbettifacts[d]])) for d in range(len(self.atoms))}
     
     def Orbit(self):
         m = self.m
