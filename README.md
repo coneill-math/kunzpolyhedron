@@ -1,5 +1,5 @@
 # kunzpolyhedron
-Written by Christopher O'Neill, Christopher Preuss, and Eduardo Torres Davila.  
+Written by Tara Gomes, Christopher O'Neill, Christopher Preuss, and Eduardo Torres Davila.  
 
 Provides functions for working with the [Kunz posets](https://arxiv.org/abs/1912.03741), which index faces of the Kunz polyhedron, in the computer algebra system [Sage](http://sagemath.org/).  Internally, some functionality uses the [GAP](http://www.gap-system.org/) package [numericalsgps](http://www.gap-system.org/Packages/numericalsgps.html) via the [NumericalSemigroup](https://github.com/coneill-math/numsgps-sage) class.  
 
