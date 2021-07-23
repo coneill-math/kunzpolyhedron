@@ -497,6 +497,32 @@ class KunzPoset:
 					continue
 		return trucks
 	
+
+	@staticmethod
+	def KunzInequalities(m):
+		return KunzPoset.__GeneralGroupConeInequalities(AbelianGroup([m]))
+
+	@staticmethod
+	def __GeneralGroupConeInequalities(G, elements=None):
+		if elements == None:
+			elements = sorted([a for a in G if a != G(1)])
+		
+		ind = {a:elements.index(a) for a in elements}
+		
+		ieqs = []
+		for a in elements:
+			for b in elements:
+				if a*b not in elements or ind[a] > ind[b]:
+					continue
+				
+				ieq = [0]*len(elements)
+				ieq[ind[a]] += 1
+				ieq[ind[b]] += 1
+				ieq[ind[a*b]] -= 1
+				ieqs.append([0] + ieq)
+		
+		return ieqs
+
 	'''
 		This static method expects there to be a data.out file in the same
 		directory called 'data.out'. You can change the file_path parameter
