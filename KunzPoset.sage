@@ -435,7 +435,9 @@ class KunzPoset:
 	
 	def Orbit(self):
 		m = self.m
-		return [KunzPoset(poset=self.poset.relabel([(i*u)%m for i in range(m)])) for u in range(1,m) if gcd(u,m) == 1]
+		posets = [self.poset.relabel({i:(i*u)%m for i in range(m)}) for u in range(1,m) if gcd(u,m) == 1]
+		posets = list(set(posets))
+		return [KunzPoset(poset=P) for P in posets]
 	
 	def FindSemigroups(self, max_kunz_coord, how_many, min_kunz_coord = 2):
 		m = self.m
