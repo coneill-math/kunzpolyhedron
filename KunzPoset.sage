@@ -220,7 +220,9 @@ class KunzPoset:
 
 	def Face(self):
 		if (not hasattr(self, "_KunzPoset__face")):
-			self.__face = Polyhedron(self.hyperplane_desc)
+			ieqs = KunzPoset.KunzInequalities(self.m)
+			eqns = [[0] + eqn for eqn in self.hyperplane_desc]
+			self.__face = Polyhedron(ieqs=ieqs, eqns=eqns)
 		return self.__face
 
 	def __make_factorizations(self, VERBOSE = False):
