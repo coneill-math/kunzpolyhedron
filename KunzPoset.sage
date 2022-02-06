@@ -374,7 +374,7 @@ class KunzPoset:
 		return self.__dimension
 	
 	def FullMinimalPresentation(self, kunz_coords = None):
-		outerfacts = self.OuterBettiFactorizationSets()
+		outerfacts = self.OuterBettiElements()
 		
 		ret = [[[0] + p1, [0] + p2] for [p1,p2] in self.MinimalPresentation()]
 
@@ -389,11 +389,16 @@ class KunzPoset:
 		
 		return ret
 	
-	def OuterBettiFactorizationSets(self):
-		ret = []
+	def OuterBettiElements(self):
+		retdict = {p:[] for p in self.poset}
 		for p in self.poset:
+			psupp = [i for (i,a) in enumerate(self.atoms) if self.poset.covers((p - a) % self.m, p)]
 			for (i,a) in enumerate(self.atoms):
 				if self.poset.covers(p, (p + a) % self.m):
+					continue
+				
+				# verify the resulting factorizations will actually live in an outer Betti element
+				if any(not self.poset.covers((p - self.atoms[j]) % self.m, (p - self.atoms[j] + a) % self.m) for j in psupp):
 					continue
 
 				newbetti = []
@@ -402,38 +407,42 @@ class KunzPoset:
 					fact2[i] = fact2[i] + 1
 					newbetti.append(tuple(fact2))
 
-				ret.append(newbetti)
+				retdict[(p + a) % self.m].append(newbetti)
+		
+		for retp in retdict:
+			ret = retdict[retp]
+			# merge connected factorization sets
+			for j in reversed(range(len(ret))):
+				for k in reversed(range(j)):
+					if any([f in ret[j] for f in ret[k]]):
+						ret[k] = list(set(ret[k] + ret[j]))
+						del ret[j]
+						break
+			
+			# check for legit outer betti
+			for j in reversed(range(len(ret))):
+				supp = list(set([i for fact in ret[j] for (i,f) in enumerate(fact) if f != 0]))
+				flag = False
 
-		# merge connected factorization sets
-		for j in reversed(range(len(ret))):
-			for k in reversed(range(j)):
-				if any([f in ret[j] for f in ret[k]]):
-					ret[k] = list(set(ret[k] + ret[j]))
-					del ret[j]
-					break
+				for i in supp:
+					elem = (retp - self.atoms[i]) % self.m
 
-		# check for legit outer betti
-		for j in reversed(range(len(ret))):
-			supp = list(set([i for fact in ret[j] for (i,f) in enumerate(fact) if f != 0]))
-			flag = False
+					bettiless = []
+					for fact in ret[j]:
+						if fact[i] == 0:
+							continue
 
-			for i in supp:
-				elem = (sum([self.atoms[k]*f for (k,f) in enumerate(ret[j][0])]) - self.atoms[i]) % self.m
+						fact2 = list(fact)
+						fact2[i] = fact2[i] - 1
+						bettiless.append(tuple(fact2))
 
-				bettiless = []
-				for fact in ret[j]:
-					if fact[i] == 0:
-						continue
+					if set(bettiless) != set([tuple(fact) for fact in self.Factorization(elem)]):
+						del ret[j]
+						break
+			
+			retdict[retp] = ret
 
-					fact2 = list(fact)
-					fact2[i] = fact2[i] - 1
-					bettiless.append(tuple(fact2))
-
-				if set(bettiless) != set([tuple(fact) for fact in self.Factorization(elem)]):
-					del ret[j]
-					break
-
-		return ret
+		return sum(retdict.values(), [])
 	
 	def Orbit(self):
 		m = self.m
@@ -562,12 +571,12 @@ class KunzPoset:
 		return hyperplane_list
 
 	@staticmethod
-	def ReadFacesFromNormaliz(face_lattice_file_path='data.fac', hplane_file_path='data.out', faceindices=None, dimension=None):
+	def IterateFacesFromNormaliz(face_lattice_file_path='data.fac', hplane_file_path='data.out', faceindices=None, dimension=None):
 		hyperplane_list = KunzPoset.ReadHyperplanesFromNormaliz(hplane_file_path)
 		multiplicity = len(hyperplane_list[0]) + 1
 		M = max(faceindices) if faceindices != None else oo
 		
-		faces = []
+		# faces = []
 		
 		file_name = face_lattice_file_path
 		with open(file_name, 'r') as f:
@@ -595,23 +604,129 @@ class KunzPoset:
 				try:
 					P = KunzPoset.BuildFromNormaliz(face, hyperplane_list)
 					P.__dimension = dim
-					faces.append(P)
+					# faces.append(P)
+					yield P
 				except ValueError as e:
 					if str(e) == "Hasse diagram contains cycles":
 						pass
 					else:
 						raise
 		
-		return faces
+		# return faces
+	
+	@staticmethod
+	def ReadFacesFromNormaliz(face_lattice_file_path='data.fac', hplane_file_path='data.out', faceindices=None, dimension=None):
+		return list(KunzPoset.IterateFacesFromNormaliz(face_lattice_file_path=face_lattice_file_path, 
+			hplane_file_path=hplane_file_path, faceindices=faceindices, dimension=dimension))
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	# old implementation
+	def __OuterBettiFactorizationSets(self):
+		ret = []
+		for p in self.poset:
+			for (i,a) in enumerate(self.atoms):
+				if self.poset.covers(p, (p + a) % self.m):
+					continue
 
+				newbetti = []
+				for fact in self.Factorization(p):
+					fact2 = list(fact)
+					fact2[i] = fact2[i] + 1
+					newbetti.append(tuple(fact2))
 
+				ret.append(newbetti)
 
+		# merge connected factorization sets
+		for j in reversed(range(len(ret))):
+			for k in reversed(range(j)):
+				if any([f in ret[j] for f in ret[k]]):
+					ret[k] = list(set(ret[k] + ret[j]))
+					del ret[j]
+					break
+		
+		# check for legit outer betti
+		for j in reversed(range(len(ret))):
+			supp = list(set([i for fact in ret[j] for (i,f) in enumerate(fact) if f != 0]))
+			flag = False
 
+			for i in supp:
+				elem = (sum([self.atoms[k]*f for (k,f) in enumerate(ret[j][0])]) - self.atoms[i]) % self.m
 
+				bettiless = []
+				for fact in ret[j]:
+					if fact[i] == 0:
+						continue
 
+					fact2 = list(fact)
+					fact2[i] = fact2[i] - 1
+					bettiless.append(tuple(fact2))
 
+				if set(bettiless) != set([tuple(fact) for fact in self.Factorization(elem)]):
+					del ret[j]
+					break
 
+		return ret
+	
+	# attempted without using factorizations, 
+	# only medium confidence of correrctness
+	def __OuterBettiSupports(self):
+		psupps = {p:[] for p in self.poset}
+		ins = {p:[] for p in self.poset}
+		ret = []
+		
+		# build in sets
+		for p in self.poset:
+			psupps[p] = [i for (i,a) in enumerate(self.atoms) if self.poset.covers((p - a) % self.m, p)]
+			
+			for (i,a) in enumerate(self.atoms):
+				if self.poset.covers(p, (p + a) % self.m):
+					continue
+				
+				# verify the resulting factorizations will actually live in an outer Betti element
+				if any(not self.poset.covers((p - self.atoms[j]) % self.m, (p - self.atoms[j] + a) % self.m) for j in psupps[p]):
+					continue
 
+				ins[(p + a) % self.m].append(i)
+		
+		for p in self.poset:
+			# build support set connected components
+			supps = [list(set(psupps[(p - self.atoms[i]) % self.m] + [i])) for i in ins[p]]
+			for j in reversed(range(len(supps))):
+				for k in reversed(range(j)):
+					if any(i in supps[j] for i in supps[k]):
+						supps[k] = list(set(supps[k] + supps[j]))
+						del supps[j]
+						break
+			
+			ret = ret + [(p,supp) for supp in supps if all(i in ins[p] for i in supp)]
+		
+		# build actual outer bettis
+		for j in range(len(ret)):
+			(p,supp) = ret[j]
+			
+			outerbetti = []
+			for i in supp:
+				for fact in self.Factorization((p - self.atoms[i]) % self.m):
+					fact2 = list(fact)
+					fact2[i] = fact2[i] + 1
+					outerbetti.append(tuple(fact2))
+			
+			ret[j] = list(set(outerbetti))
+		
+		return ret
+	
 	def __outerelementinfo(self, upper_factorizations):
 		# TODO: build poset too
 		factlistsbyfacts = {}
