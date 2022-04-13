@@ -88,7 +88,7 @@ def FactorizeCoordinates(element,gens,chains,mult):
 	return factors
 
 
-def RayCoordinates(mult,gens,chains,verbose=False):
+def RayCoordinates(mult,gens,chains,verbose=False,vector_directions=None):
 	'''
 	Gets the coordinates for where to place each element in the poset based of the factorization
 	
@@ -96,10 +96,12 @@ def RayCoordinates(mult,gens,chains,verbose=False):
 	gens: the list of non-trivial minimum generators
 	chains: the list of maximal chains for each element in the poset
 	verbose: an optional parameter that when set to True adds additional print statements. defaulted to False. mostly used for debugging
+    vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
 	return: returns a dictionary of coordiantes for each element in the poset
 	'''
 	coord=[0..mult-1]
 	leng=len(gens)
+	assert CheckVectorDirections(leng,vector_directions), "Invalid parameter setup for 'vector_directions'"
 	
 	#whether to include the factorization for zero in the dictionary of factorizations, currently implemented, may not be needed
 	factorizationZero=[0]*(leng+1)
@@ -145,18 +147,21 @@ def RayCoordinates(mult,gens,chains,verbose=False):
 	
 	#generates the list of vector directions for the non-trivial minimum generators to base the poset design
 	##### add implementation for shift like in NSG_Poset?
-	dict2={0:(0,0)}    
-	if leng%2==0:
-		for mm in [1..leng/2]:
-			dict2[mm]=(((-1*((leng)/2-mm+0.5))),1.0)
-		for nn in [leng/2+1..leng]:
-			dict2[nn]=(nn-leng/2-0.5,1.0)
+	if vector_directions is None:
+		dict2={0:(0,0)}    
+		if leng%2==0:
+			for mm in [1..leng/2]:
+				dict2[mm]=(((-1*((leng)/2-mm+0.5))),1.0)
+			for nn in [leng/2+1..leng]:
+				dict2[nn]=(nn-leng/2-0.5,1.0)
+		else:
+			for mm in [1..(leng-1)/2]:
+				dict2[mm]=((-1*((leng-1)/2-mm+1)),1.0)
+			for nn in [(leng+1)/2+1..leng]:
+				dict2[nn]=(nn-(leng+1)/2,1.0)
+			dict2[(leng+1)/2]=(0.0,1.0)
 	else:
-		for mm in [1..(leng-1)/2]:
-			dict2[mm]=((-1*((leng-1)/2-mm+1)),1.0)
-		for nn in [(leng+1)/2+1..leng]:
-			dict2[nn]=(nn-(leng+1)/2,1.0)
-		dict2[(leng+1)/2]=(0.0,1.0)
+		dict2=vector_directions
 	if verbose:
 		print('direction of generators: '+str(dict2))
 	
@@ -249,7 +254,7 @@ def RayEquations(ray,count,verbose=False):
 	return eqn
 
 
-def RaysPoset(rays,fsize=10,colored=True,verbose=False):
+def RaysPoset(rays,fsize=10,colored=True,verbose=False,vector_directions=None):
 	'''
 	Creates the Poset given the bounding rays of a Kunz Polyhedra.
 	If the list of rays inputted do not define a face or are not the full list of extremal rays for the face, may not generate the correct poset
@@ -258,6 +263,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False):
 	fsize: an optional parameter for the size of the graphic of the poset to be plotted. defaulted at 10
 	colored: an optional parameter to determine if the poset should have colored edges. defaulted to True
 	verbose: an optional parameter that when set to True adds additional print statements. defaulted to False. mostly used for debugging
+    vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
 	return: a graphic object of the poset corresponding to the face bounded by the list of rays inputted
 	'''
 	
@@ -338,7 +344,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False):
 	PP= Poset(comb, cover_relations = True)
 	
 	#gets the coordinate of where to place each element in the poset based off their factorization
-	cords=RayCoordinates(m+1,sorted(PP.minimal_elements()),sorted(list(PP.maximal_chains())),verbose)
+	cords=RayCoordinates(m+1,sorted(PP.minimal_elements()),sorted(list(PP.maximal_chains())),verbose,vector_directions)
 	
 	#recreates the poset to include 0
 	for gg in PP.minimal_elements():
@@ -365,17 +371,19 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False):
 	return HH.plot(pos=cords,figsize=fsize,color_by_label=colored)
 
 
-def KunzPosetCoordinates(NSG,shift=False,verbose=False):
+def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	'''
 	Finds the coordinates for each vertex in a Kunz poset, used for NSG_Poset.
 	
 	NSG: the numerical semigroup, or a list of generators
 	shift: an optional parameter for whether the minimal generators should be evenly spaced or not. defaulted to False for even spacing
 	verbose: an optional parameter that when set to True adds additional print statements. defaulted to False. mostly used for debugging
+    vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
 	return: a dictionary of tuples for where to place each element of the poset
 	'''
 	if type(NSG) == list:
 		NSG = NumericalSemigroup(NSG)
+	assert CheckVectorDirections(len(NSG.gens),vector_directions), "Invalid parameter setup for 'vector_directions'"
 	gens=NSG.gens
 	Ap=NSG.AperySet(min(gens)) #gets the apery set for the elements in the poset
 	leng=len(gens)-1.0
@@ -419,35 +427,38 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False):
 		print('average factorizations: '+str(dict1))
 	
 	#finds the vector directions for each of the non-trivial minimum generators
-	dict2={0:(0,0)}
-	if shift: #determines the vector directions so that they are not evenly spaced
-		if leng%2==0:
-			count=0.5
-			for mm in [1..leng/2]:
-				count+=mm
-				dict2[mm]=dict2[mm]=((count*(-1*((leng)/2-mm+0.5))),1.0)
-			for nn in [leng/2+1..leng]:
-				dict2[nn]=(nn-leng/2-0.5,1.0)
-		else:
-			count=0.5
-			for mm in [1..(leng-1)/2]:
-				count+=mm
-				dict2[mm]=((count*(-1*((leng-1)/2-mm+1))),1.0)
-			for nn in [(leng+1)/2+1..leng]:
-				dict2[nn]=(nn-(leng+1)/2,1.0)
-			dict2[(leng+1)/2]=(0.0,1.0)
-	else: #determines the vector direction to evenly space out the generators
-		if leng%2==0:
-			for mm in [1..leng/2]:
-				dict2[mm]=dict2[mm]=(((-1*((leng)/2-mm+0.5))),1.0)
-			for nn in [leng/2+1..leng]:
-				dict2[nn]=(nn-leng/2-0.5,1.0)
-		else:
-			for mm in [1..(leng-1)/2]:
-				dict2[mm]=((-1*((leng-1)/2-mm+1)),1.0)
-			for nn in [(leng+1)/2+1..leng]:
-				dict2[nn]=(nn-(leng+1)/2,1.0)
-			dict2[(leng+1)/2]=(0.0,1.0)
+	if vector_directions is None:
+		dict2={0:(0,0)}
+		if shift: #determines the vector directions so that they are not evenly spaced
+			if leng%2==0:
+				count=0.5
+				for mm in [1..leng/2]:
+					count+=mm
+					dict2[mm]=dict2[mm]=((count*(-1*((leng)/2-mm+0.5))),1.0)
+				for nn in [leng/2+1..leng]:
+					dict2[nn]=(nn-leng/2-0.5,1.0)
+			else:
+				count=0.5
+				for mm in [1..(leng-1)/2]:
+					count+=mm
+					dict2[mm]=((count*(-1*((leng-1)/2-mm+1))),1.0)
+				for nn in [(leng+1)/2+1..leng]:
+					dict2[nn]=(nn-(leng+1)/2,1.0)
+				dict2[(leng+1)/2]=(0.0,1.0)
+		else: #determines the vector direction to evenly space out the generators
+			if leng%2==0:
+				for mm in [1..leng/2]:
+					dict2[mm]=dict2[mm]=(((-1*((leng)/2-mm+0.5))),1.0)
+				for nn in [leng/2+1..leng]:
+					dict2[nn]=(nn-leng/2-0.5,1.0)
+			else:
+				for mm in [1..(leng-1)/2]:
+					dict2[mm]=((-1*((leng-1)/2-mm+1)),1.0)
+				for nn in [(leng+1)/2+1..leng]:
+					dict2[nn]=(nn-(leng+1)/2,1.0)
+				dict2[(leng+1)/2]=(0.0,1.0)
+	else:
+		dict2=vector_directions
 	if verbose:
 		print('generator directions: '+str(dict2))
 
@@ -499,17 +510,19 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False):
 	return coord
 
 
-def AperyPosetCoordinates(NSG,shift=False,verbose=False):
+def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	'''
 	Finds the coordinates for each vertex in a Apery poset, used for NSG_Poset.
 	
 	NSG: the numerical semigroup, or a list of generators
 	shift: an optional parameter for whether the minimal generators should be evenly spaced or not. defaulted to False for even spacing
 	verbose: an optional parameter that when set to True adds additional print statements. defaulted to False. mostly used for debugging
+    vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
 	return: a dictionary of tuples for where to place each element of the poset
 	'''
 	if type(NSG) == list:
 		NSG = NumericalSemigroup(NSG)
+	assert CheckVectorDirections(len(NSG.gens),vector_directions), "Invalid parameter setup for 'vector_directions'"
 	gens=NSG.gens
 	Ap=NSG.AperySet(min(gens))#gets the apery set for the elements in the poset
 	leng=len(gens)-1.0
@@ -553,35 +566,38 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False):
 		print('average factorizations: '+str(dict1))
 	
 	#finds the vector directions for each of the non-trivial minimum generators
-	dict2={0:(0,0)}
-	if shift: #determines the vector directions so that they are not evenly spaced
-		if leng%2==0:
-			count=0.5
-			for mm in [1..leng/2]:
-				count+=mm
-				dict2[mm]=dict2[mm]=((count*(-1*((leng)/2-mm+0.5))),1.0)
-			for nn in [leng/2+1..leng]:
-				dict2[nn]=(nn-leng/2-0.5,1.0)
-		else:
-			count=0.5
-			for mm in [1..(leng-1)/2]:
-				count+=mm
-				dict2[mm]=((count*(-1*((leng-1)/2-mm+1))),1.0)
-			for nn in [(leng+1)/2+1..leng]:
-				dict2[nn]=(nn-(leng+1)/2,1.0)
-			dict2[(leng+1)/2]=(0.0,1.0)
-	else: #determines the vector direction to evenly space out the generators
-		if leng%2==0:
-			for mm in [1..leng/2]:
-				dict2[mm]=dict2[mm]=(((-1*((leng)/2-mm+0.5))),1.0)
-			for nn in [leng/2+1..leng]:
-				dict2[nn]=(nn-leng/2-0.5,1.0)
-		else:
-			for mm in [1..(leng-1)/2]:
-				dict2[mm]=((-1*((leng-1)/2-mm+1)),1.0)
-			for nn in [(leng+1)/2+1..leng]:
-				dict2[nn]=(nn-(leng+1)/2,1.0)
-			dict2[(leng+1)/2]=(0.0,1.0)
+	if vector_directions is None:
+		dict2={0:(0,0)}
+		if shift: #determines the vector directions so that they are not evenly spaced
+			if leng%2==0:
+				count=0.5
+				for mm in [1..leng/2]:
+					count+=mm
+					dict2[mm]=dict2[mm]=((count*(-1*((leng)/2-mm+0.5))),1.0)
+				for nn in [leng/2+1..leng]:
+					dict2[nn]=(nn-leng/2-0.5,1.0)
+			else:
+				count=0.5
+				for mm in [1..(leng-1)/2]:
+					count+=mm
+					dict2[mm]=((count*(-1*((leng-1)/2-mm+1))),1.0)
+				for nn in [(leng+1)/2+1..leng]:
+					dict2[nn]=(nn-(leng+1)/2,1.0)
+				dict2[(leng+1)/2]=(0.0,1.0)
+		else: #determines the vector direction to evenly space out the generators
+			if leng%2==0:
+				for mm in [1..leng/2]:
+					dict2[mm]=dict2[mm]=(((-1*((leng)/2-mm+0.5))),1.0)
+				for nn in [leng/2+1..leng]:
+					dict2[nn]=(nn-leng/2-0.5,1.0)
+			else:
+				for mm in [1..(leng-1)/2]:
+					dict2[mm]=((-1*((leng-1)/2-mm+1)),1.0)
+				for nn in [(leng+1)/2+1..leng]:
+					dict2[nn]=(nn-(leng+1)/2,1.0)
+				dict2[(leng+1)/2]=(0.0,1.0)
+	else:
+		dict2=vector_directions
 	
 	#determines the final coordinates for each element of the poset based of the vector directions for the generators
 	coord={}
@@ -634,7 +650,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False):
 	return coord
 
 
-def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True):
+def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True,vector_directions=None):
 	'''
 	Creates the Kunz or Apery Poset of a Numerical Semigroup Structured by the Minimal Elements.
 	
@@ -646,10 +662,12 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 	kunz: whether to make a Kunz poset or apery poset, default is Kunz
 	verbose: prints out additional information about inner workings of functions. useful for troubleshooting
     plot: whether to return a plot of the poset (graphic object) or just the poset object, default true NOTE: if returning poset object uses sage default poset style
+    vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
 	return: a graphics type object of the plot of the poset being generated or a poset object for the numerical semigroup
 	'''
 	if type(NSG) == list:
 		NSG = NumericalSemigroup(NSG)
+	assert CheckVectorDirections(len(NSG.gens),vector_directions), "Invalid parameter setup for 'vector_directions'"
 	gens=NSG.gens
 	mult=min(gens) #gets the multiplicity of the numerical semigroup
 	Ap=sorted(NSG.AperySet(mult)) #creates and sorts the Apery Set of the numerical semigroup
@@ -692,7 +710,7 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 						if ((nn[1]-nn[0])%mult)==(mm%mult):
 							HH.set_edge_label(nn[0],nn[1],count%11)
 				colored={ii:colors[ii] for ii in [0..10]}
-			dd=KunzPosetCoordinates(NSG,shift,verbose) #determines the coordinates for each vertex in the poset
+			dd=KunzPosetCoordinates(NSG,shift,verbose,vector_directions) #determines the coordinates for each vertex in the poset
 
 	#creates an apery poset
 	else:
@@ -732,10 +750,22 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 				colored={ii:colors[ii] for ii in [0..10]}
 
 			#determines the coordinates for each vertex in the poset
-			dd=AperyPosetCoordinates(NSG,shift,verbose)
+			dd=AperyPosetCoordinates(NSG,shift,verbose,vector_directions)
 
 	if verbose:
 		print('cover relations: '+str(covers))
 	if plot:
 		return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize)  #plots the pose
 	return PP #returns poset type object if plot set to False
+
+def CheckVectorDirections(num_gens,vector_directions):
+	if vector_directions is not None:
+		# Check to ensure vector_directions is properly formatted
+		if not type(vector_directions) is dict:
+			return False
+		for i in range(num_gens):
+			if i not in vector_directions:
+				return False
+			if not type(vector_directions[i]) is tuple or len(vector_directions[i]) != 2:
+				return False
+	return True
