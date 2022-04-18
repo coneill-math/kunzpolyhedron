@@ -371,7 +371,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False,vector_directions=None):
 	return HH.plot(pos=cords,figsize=fsize,color_by_label=colored)
 
 
-def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
+def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None,show_bettis=False):
 	'''
 	Finds the coordinates for each vertex in a Kunz poset, used for NSG_Poset.
 	
@@ -386,6 +386,8 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	assert CheckVectorDirections(len(NSG.gens),vector_directions), "Invalid parameter setup for 'vector_directions'"
 	gens=NSG.gens
 	Ap=NSG.AperySet(min(gens)) #gets the apery set for the elements in the poset
+	if show_bettis:
+		pass
 	leng=len(gens)-1.0
 	lengs=len(Ap)-1.0
 	dict1={}
@@ -510,7 +512,7 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	return coord
 
 
-def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
+def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None,show_bettis=False):
 	'''
 	Finds the coordinates for each vertex in a Apery poset, used for NSG_Poset.
 	
@@ -525,6 +527,11 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	assert CheckVectorDirections(len(NSG.gens),vector_directions), "Invalid parameter setup for 'vector_directions'"
 	gens=NSG.gens
 	Ap=NSG.AperySet(min(gens))#gets the apery set for the elements in the poset
+	if show_bettis:
+		bettis = NSG.BettiElements()
+		iBettis = [b for ii, b in enumerate(bettis) if b in Ap]
+		oBettis = [b for ii, b in enumerate(bettis) if b not in Ap]
+		Ap += oBettis
 	leng=len(gens)-1.0
 	lengs=len(Ap)-1.0
 	dict1={}
@@ -650,7 +657,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	return coord
 
 
-def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True,vector_directions=None):
+def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True,vector_directions=None,show_bettis=False):
 	'''
 	Creates the Kunz or Apery Poset of a Numerical Semigroup Structured by the Minimal Elements.
 	
@@ -678,10 +685,14 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 	if kunz:
 		covers=[]
 		##find all the cover relations between the elements
-		for ii in Ap:
-			for jj in Ap:
+		for ind, ii in enumerate(Ap):
+			for jj in Ap[:ind]:
 				if (ii-jj) in gens:
 					covers.append((jj%mult,ii%mult))
+
+		# TODO Add covers for outer bettis
+		if verbose:
+			print(covers)
 
 		#orders the cover relations by the minimal elements that represents the relationship between elements, currently not implemented
 		#coversOrdered=[]
@@ -710,14 +721,23 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 						if ((nn[1]-nn[0])%mult)==(mm%mult):
 							HH.set_edge_label(nn[0],nn[1],count%11)
 				colored={ii:colors[ii] for ii in [0..10]}
-			dd=KunzPosetCoordinates(NSG,shift,verbose,vector_directions) #determines the coordinates for each vertex in the poset
+			dd=KunzPosetCoordinates(NSG,shift,verbose,vector_directions,show_bettis) #determines the coordinates for each vertex in the poset
+			if verbose:
+				print("DD:")
+				print(dd)
+				print()
 
 	#creates an apery poset
 	else:
+		if show_bettis:
+			bettis = NSG.BettiElements()
+			iBettis = [b for ii, b in enumerate(bettis) if b in Ap]
+			oBettis = [b for ii, b in enumerate(bettis) if b not in Ap]
+			Ap += oBettis
 		covers=[]
 		#find all the cover relations between the elements
-		for ii in Ap:
-			for jj in Ap:
+		for ind, ii in enumerate(Ap):
+			for jj in Ap[:ind]:
 				if (ii-jj) in gens:
 					covers.append((jj,ii))
 
@@ -750,7 +770,7 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 				colored={ii:colors[ii] for ii in [0..10]}
 
 			#determines the coordinates for each vertex in the poset
-			dd=AperyPosetCoordinates(NSG,shift,verbose,vector_directions)
+			dd=AperyPosetCoordinates(NSG,shift,verbose,vector_directions,show_bettis)
 
 	if verbose:
 		print('cover relations: '+str(covers))
