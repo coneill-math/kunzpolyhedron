@@ -690,7 +690,6 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 				if (ii-jj) in gens:
 					covers.append((jj%mult,ii%mult))
 
-		# TODO Add covers for outer bettis
 		if verbose:
 			print(covers)
 
@@ -738,7 +737,7 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 		#find all the cover relations between the elements
 		for ind, ii in enumerate(Ap):
 			for jj in Ap[:ind]:
-				if (ii-jj) in gens:
+				if (ii-jj) in gens and (ii - jj) != mult:
 					covers.append((jj,ii))
 
 		#orders the cover relations by the minimal elements that represents the relationship between elements, currently not implemented
