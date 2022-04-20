@@ -413,7 +413,7 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None,sh
 	#finds the average factorization for each element in the Apery Set and corresponds it to its associated resiudue for the Kunz poset
 	for ii in [0..lengs]:
 		factorization=NSG.Factorizations(Ap[int(ii)])
-		if ii in oBettis:
+		if Ap[int(ii)] in oBettis:
 			#ignore factorizations that involve the multiplicity
 			factorization = [f for f in factorization if f[0] == 0]
 		if verbose:
@@ -516,8 +516,6 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None,sh
 		if jj < mult:
 			coord[jj]=tuple(coordinate)
 		else:
-			print(int(jj) - mult)
-			print(len(oBettiLabels))
 			coord[oBettiLabels[int(jj)-mult]]=tuple(coordinate)
 		
 	#checks over the coordinates of all the elements to make sure none overlap and shift them slightly if they do
@@ -723,6 +721,7 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 			iBettis = [b for ii, b in enumerate(bettis) if b in Ap]
 			oBettis = [b for ii, b in enumerate(bettis) if b not in Ap]
 			Ap += oBettis
+			Ap = sorted(Ap)
 
 			#properly name the apery set elements
 			name_map = {}
@@ -734,7 +733,7 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 					name_map[val] += 1
 				label = f"${val}_{{{name_map[val]}}}$"
 				label_map[b] = label
-				value_map[label] = b % mult
+				value_map[label] = b
 				oBettiLabels.append(label)
 
 		for ii in NSG.AperySet(mult):
@@ -745,9 +744,8 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 		##find all the cover relations between the elements
 		for ind, ii in enumerate(Ap):
 			for jj in Ap[:ind]:
-				if (ii-jj) in gens:
-					if ii in oBettis:				
-						covers.append((label_map[jj],label_map[ii]))
+				if (ii-jj) in gens and (ii-jj) != mult:
+					covers.append((label_map[jj],label_map[ii]))
 
 		if verbose:
 			print(covers)
@@ -833,6 +831,7 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 
 	if verbose:
 		print('cover relations: '+str(covers))
+		print('colored: ' +str(colored))
 	if plot:
 		return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize)  #plots the pose
 	return PP #returns poset type object if plot set to False
