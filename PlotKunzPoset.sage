@@ -709,12 +709,14 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 	if verbose:
 		print('Apery Set (Sorted From Smallest to Largest, Not By Residue): '+str(Ap))
 	
+	iBettis = []
+	iBettiLabels = []
+	oBettis = []
+	oBettiLabels = []
 	#creates the Kunz poset
 	if kunz:
 		label_map = {}
 		value_map = {}
-		oBettis = []
-		oBettiLabels = []
 		mult = min(NSG.gens)
 		if show_bettis:
 			bettis = NSG.BettiElements()
@@ -722,6 +724,8 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 			oBettis = [b for ii, b in enumerate(bettis) if b not in Ap]
 			Ap += oBettis
 			Ap = sorted(Ap)
+
+			iBettiLabels = [b % mult for b in iBettis]
 
 			#properly name the apery set elements
 			name_map = {}
@@ -791,6 +795,9 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 			iBettis = [b for ii, b in enumerate(bettis) if b in Ap]
 			oBettis = [b for ii, b in enumerate(bettis) if b not in Ap]
 			Ap += oBettis
+
+			iBettiLabels = iBettis
+			oBettiLabels = oBettis
 		covers=[]
 		#find all the cover relations between the elements
 		for ind, ii in enumerate(Ap):
@@ -833,7 +840,10 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 		print('cover relations: '+str(covers))
 		print('colored: ' +str(colored))
 	if plot:
-		return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize)  #plots the pose
+		vcolors = {}
+		if colored:
+			vcolors={'lightgray' : iBettiLabels, 'lightcoral': oBettiLabels}
+		return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize,vertex_colors=vcolors)  #plots the pose
 	return PP #returns poset type object if plot set to False
 
 def CheckVectorDirections(num_gens,vector_directions):
