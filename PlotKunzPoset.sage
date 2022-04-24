@@ -685,7 +685,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None,s
 	return coord
 
 
-def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True,vector_directions=None,show_bettis=False):
+def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True,vector_directions=None,show_bettis=False,partition_bettis=False):
 	'''
 	Creates the Kunz or Apery Poset of a Numerical Semigroup Structured by the Minimal Elements.
 	
@@ -703,6 +703,7 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 	if type(NSG) == list:
 		NSG = NumericalSemigroup(NSG)
 	assert CheckVectorDirections(len(NSG.gens),vector_directions), "Invalid parameter setup for 'vector_directions'"
+	assert show_bettis or (not partition_bettis), "Show bettis must be true to use partition_bettis"
 	gens=NSG.gens
 	mult=min(gens) #gets the multiplicity of the numerical semigroup
 	Ap=sorted(NSG.AperySet(mult).copy()) #creates and sorts the Apery Set of the numerical semigroup
@@ -842,7 +843,54 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 	if plot:
 		vcolors = {}
 		if colored:
-			vcolors={'lightgray' : iBettiLabels, 'lightcoral': oBettiLabels}
+			if partition_bettis:
+				polys = []
+				oBettiParts = []
+				kPoset = KunzPoset(numerical_semigroup=NSG)
+				for i in range(len(oBettis)):
+					eqn = [0 for j in range(mult)]
+					facts = NSG.Factorizations(oBettis[i])
+					nonMultFacts = [f for f in facts if f[0] == 0]
+					multFacts = [f for f in facts if f[0] != 0]
+					assert (len(nonMultFacts) > 0) and (len(multFacts) > 0)
+					for j in range(1, len(nonMultFacts[0])):
+						idx = S.gens[j] % mult
+						eqn[idx] = nonMultFacts[0][j] - multFacts[-1][j]
+					eq = Polyhedron(eqns=[eqn])
+					poly = kPoset.Face().intersection(eq)
+
+					print(f"For Outer Betti: {oBettis[i]}")
+					print(f"nonMultFacts: {nonMultFacts}")
+					print(f"multFacts: {multFacts}")
+					print(f"eqn: {eqn}")
+
+					polyInd = -1
+					for j, p in enumerate(polys):
+						if p == poly:
+							polyInd = j
+							oBettiParts[j].append(oBettiLabels[i])
+							break
+						
+					if polyInd == -1:
+						polyInd = len(polys)
+						polys.append(poly)
+						oBettiParts.append([oBettiLabels[i]])
+
+					print(f"PolyIndex: {polyInd}, dimension: {poly.dimension()}")
+					print()
+
+				vcolors = {'lightgray' : iBettiLabels}
+				oBettiColors = ['lightcoral', 'navajowhite', 'lemonchiffon', 'springgreen', 'aquamarine', 'turquoise', 'skyblue', 'lavendar', 'plum']
+				assert len(oBettiParts) <= len(oBettiColors)
+				print(f"We have {len(oBettiParts)} different partitions of outer bettis")
+				print(oBettiParts)
+				for i, p in enumerate(polys):
+					print(f"Poly {i} has dimension {p.dimension()}")
+
+				for i in range(len(oBettiParts)):
+					vcolors[oBettiColors[i]] = oBettiParts[i]
+			else:
+				vcolors={'lightgray' : iBettiLabels, 'lightcoral': oBettiLabels}
 		return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize,vertex_colors=vcolors)  #plots the pose
 	return PP #returns poset type object if plot set to False
 
