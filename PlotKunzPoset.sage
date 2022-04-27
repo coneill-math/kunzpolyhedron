@@ -852,17 +852,13 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 					facts = NSG.Factorizations(oBettis[i])
 					nonMultFacts = [f for f in facts if f[0] == 0]
 					multFacts = [f for f in facts if f[0] != 0]
+					multFact = max(multFacts, key=lambda x:x[0])
 					assert (len(nonMultFacts) > 0) and (len(multFacts) > 0)
 					for j in range(1, len(nonMultFacts[0])):
 						idx = S.gens[j] % mult
-						eqn[idx] = nonMultFacts[0][j] - multFacts[-1][j]
+						eqn[idx] = nonMultFacts[0][j] - multFact[j]
 					eq = Polyhedron(eqns=[eqn])
 					poly = kPoset.Face().intersection(eq)
-
-					print(f"For Outer Betti: {oBettis[i]}")
-					print(f"nonMultFacts: {nonMultFacts}")
-					print(f"multFacts: {multFacts}")
-					print(f"eqn: {eqn}")
 
 					polyInd = -1
 					for j, p in enumerate(polys):
@@ -876,11 +872,8 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 						polys.append(poly)
 						oBettiParts.append([oBettiLabels[i]])
 
-					print(f"PolyIndex: {polyInd}, dimension: {poly.dimension()}")
-					print()
-
 				vcolors = {'lightgray' : iBettiLabels}
-				oBettiColors = ['lightcoral', 'navajowhite', 'lemonchiffon', 'springgreen', 'aquamarine', 'turquoise', 'skyblue', 'lavendar', 'plum']
+				oBettiColors = ['lightcoral', 'navajowhite', 'springgreen', 'aquamarine', 'turquoise', 'skyblue', 'lavendar', 'plum']
 				assert len(oBettiParts) <= len(oBettiColors)
 				print(f"We have {len(oBettiParts)} different partitions of outer bettis")
 				print(oBettiParts)
