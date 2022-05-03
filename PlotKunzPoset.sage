@@ -379,6 +379,7 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None,sh
 	shift: an optional parameter for whether the minimal generators should be evenly spaced or not. defaulted to False for even spacing
 	verbose: an optional parameter that when set to True adds additional print statements. defaulted to False. mostly used for debugging
     vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
+    show_bettis: whether or not to compute coordinates for outer betti elements
 	return: a dictionary of tuples for where to place each element of the poset
 	'''
 	if type(NSG) == list:
@@ -543,6 +544,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None,s
 	shift: an optional parameter for whether the minimal generators should be evenly spaced or not. defaulted to False for even spacing
 	verbose: an optional parameter that when set to True adds additional print statements. defaulted to False. mostly used for debugging
     vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
+    show_bettis: whether or not to compute coordinates for outer betti elements
 	return: a dictionary of tuples for where to place each element of the poset
 	'''
 	if type(NSG) == list:
@@ -698,6 +700,8 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 	verbose: prints out additional information about inner workings of functions. useful for troubleshooting
     plot: whether to return a plot of the poset (graphic object) or just the poset object, default true NOTE: if returning poset object uses sage default poset style
     vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
+    show_bettis: whether or not to plot outer betti elements and highlight inner and outer bettis
+    partition_bettis: whether or not to further partition outer bettis.  Two outer bettis are in the same partition adding there relation yields the same polyhedron
 	return: a graphics type object of the plot of the poset being generated or a poset object for the numerical semigroup
 	'''
 	if type(NSG) == list:
