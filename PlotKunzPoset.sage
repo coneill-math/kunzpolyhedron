@@ -371,7 +371,7 @@ def RaysPoset(rays,fsize=10,colored=True,verbose=False,vector_directions=None):
 	return HH.plot(pos=cords,figsize=fsize,color_by_label=colored)
 
 
-def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
+def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None,show_bettis=False):
 	'''
 	Finds the coordinates for each vertex in a Kunz poset, used for NSG_Poset.
 	
@@ -379,13 +379,33 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	shift: an optional parameter for whether the minimal generators should be evenly spaced or not. defaulted to False for even spacing
 	verbose: an optional parameter that when set to True adds additional print statements. defaulted to False. mostly used for debugging
     vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
+    show_bettis: whether or not to compute coordinates for outer betti elements
 	return: a dictionary of tuples for where to place each element of the poset
 	'''
 	if type(NSG) == list:
 		NSG = NumericalSemigroup(NSG)
 	assert CheckVectorDirections(len(NSG.gens),vector_directions), "Invalid parameter setup for 'vector_directions'"
 	gens=NSG.gens
-	Ap=NSG.AperySet(min(gens)) #gets the apery set for the elements in the poset
+	Ap=NSG.AperySet(min(gens)).copy() #gets the apery set for the elements in the poset
+	oBettis = []
+	oBettiLabels = []
+	mult = min(NSG.gens)
+	if show_bettis:
+		bettis = NSG.BettiElements()
+		iBettis = [b for ii, b in enumerate(bettis) if b in Ap]
+		oBettis = [b for ii, b in enumerate(bettis) if b not in Ap]
+		Ap += oBettis
+
+		#properly name the apery set elements
+		name_map = {}
+		for ii, b in enumerate(oBettis):
+			val = b % mult
+			if val not in name_map:
+				name_map[val] = 0
+			else:
+				name_map[val] += 1
+			oBettiLabels.append(f"${val}_{{{name_map[val]}}}$")
+
 	leng=len(gens)-1.0
 	lengs=len(Ap)-1.0
 	dict1={}
@@ -394,6 +414,9 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	#finds the average factorization for each element in the Apery Set and corresponds it to its associated resiudue for the Kunz poset
 	for ii in [0..lengs]:
 		factorization=NSG.Factorizations(Ap[int(ii)])
+		if Ap[int(ii)] in oBettis:
+			#ignore factorizations that involve the multiplicity
+			factorization = [f for f in factorization if f[0] == 0]
 		if verbose:
 			print('factorization of '+str(ii)+': '+str(factorization))
 		
@@ -491,11 +514,14 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 			if flag:
 				coordinate[0]+=0.25
 			coordinate[1]=factor[len(factor)-1]-0.5
-		coord[jj]=tuple(coordinate)
+		if jj < mult:
+			coord[jj]=tuple(coordinate)
+		else:
+			coord[oBettiLabels[int(jj)-mult]]=tuple(coordinate)
 		
 	#checks over the coordinates of all the elements to make sure none overlap and shift them slightly if they do
-	for mm in [0..lengs]:
-		for nn in [0..lengs]:
+	for mm in coord:
+		for nn in coord:
 			if mm!=nn:
 				if coord[mm]==coord[nn]:
 					tempCoord1=list(coord[mm])
@@ -510,7 +536,7 @@ def KunzPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	return coord
 
 
-def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
+def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None,show_bettis=False):
 	'''
 	Finds the coordinates for each vertex in a Apery poset, used for NSG_Poset.
 	
@@ -518,13 +544,20 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	shift: an optional parameter for whether the minimal generators should be evenly spaced or not. defaulted to False for even spacing
 	verbose: an optional parameter that when set to True adds additional print statements. defaulted to False. mostly used for debugging
     vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
+    show_bettis: whether or not to compute coordinates for outer betti elements
 	return: a dictionary of tuples for where to place each element of the poset
 	'''
 	if type(NSG) == list:
 		NSG = NumericalSemigroup(NSG)
 	assert CheckVectorDirections(len(NSG.gens),vector_directions), "Invalid parameter setup for 'vector_directions'"
 	gens=NSG.gens
-	Ap=NSG.AperySet(min(gens))#gets the apery set for the elements in the poset
+	Ap=NSG.AperySet(min(gens)).copy()#gets the apery set for the elements in the poset
+	oBettis = []
+	if show_bettis:
+		bettis = NSG.BettiElements()
+		iBettis = [b for ii, b in enumerate(bettis) if b in Ap]
+		oBettis = [b for ii, b in enumerate(bettis) if b not in Ap]
+		Ap += oBettis
 	leng=len(gens)-1.0
 	lengs=len(Ap)-1.0
 	dict1={}
@@ -533,6 +566,10 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	#finds the average factorization for each element in the Apery Set and corresponds it to its associated resiudue for the Kunz poset
 	for ii in Ap:
 		factorization=NSG.Factorizations(ii)
+		if ii in oBettis:
+			#ignore factorizations that involve the multiplicity
+			factorization = [f for f in factorization if f[0] == 0]
+
 		if verbose:
 			print('factorization of '+str(ii)+': '+str(factorization))
 			
@@ -650,7 +687,7 @@ def AperyPosetCoordinates(NSG,shift=False,verbose=False,vector_directions=None):
 	return coord
 
 
-def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True,vector_directions=None):
+def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verbose=False,plot=True,vector_directions=None,show_bettis=False,partition_bettis=False):
 	'''
 	Creates the Kunz or Apery Poset of a Numerical Semigroup Structured by the Minimal Elements.
 	
@@ -663,25 +700,64 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 	verbose: prints out additional information about inner workings of functions. useful for troubleshooting
     plot: whether to return a plot of the poset (graphic object) or just the poset object, default true NOTE: if returning poset object uses sage default poset style
     vector_directions: an optional parameter that gives the arrow directions and magnitude corresponding to each minimal generator
+    show_bettis: whether or not to plot outer betti elements and highlight inner and outer bettis
+    partition_bettis: whether or not to further partition outer bettis.  Two outer bettis are in the same partition adding there relation yields the same polyhedron
 	return: a graphics type object of the plot of the poset being generated or a poset object for the numerical semigroup
 	'''
 	if type(NSG) == list:
 		NSG = NumericalSemigroup(NSG)
 	assert CheckVectorDirections(len(NSG.gens),vector_directions), "Invalid parameter setup for 'vector_directions'"
+	assert show_bettis or (not partition_bettis), "Show bettis must be true to use partition_bettis"
 	gens=NSG.gens
 	mult=min(gens) #gets the multiplicity of the numerical semigroup
-	Ap=sorted(NSG.AperySet(mult)) #creates and sorts the Apery Set of the numerical semigroup
+	Ap=sorted(NSG.AperySet(mult).copy()) #creates and sorts the Apery Set of the numerical semigroup
 	if verbose:
 		print('Apery Set (Sorted From Smallest to Largest, Not By Residue): '+str(Ap))
 	
+	iBettis = []
+	iBettiLabels = []
+	oBettis = []
+	oBettiLabels = []
 	#creates the Kunz poset
 	if kunz:
+		label_map = {}
+		value_map = {}
+		mult = min(NSG.gens)
+		if show_bettis:
+			bettis = NSG.BettiElements()
+			iBettis = [b for ii, b in enumerate(bettis) if b in Ap]
+			oBettis = [b for ii, b in enumerate(bettis) if b not in Ap]
+			Ap += oBettis
+			Ap = sorted(Ap)
+
+			iBettiLabels = [b % mult for b in iBettis]
+
+			#properly name the apery set elements
+			name_map = {}
+			for ii, b in enumerate(oBettis):
+				val = b % mult
+				if val not in name_map:
+					name_map[val] = 0
+				else:
+					name_map[val] += 1
+				label = f"${val}_{{{name_map[val]}}}$"
+				label_map[b] = label
+				value_map[label] = b
+				oBettiLabels.append(label)
+
+		for ii in NSG.AperySet(mult):
+			label_map[ii] = ii % mult
+			value_map[ii % mult] = ii
+
 		covers=[]
 		##find all the cover relations between the elements
-		for ii in Ap:
-			for jj in Ap:
-				if (ii-jj) in gens:
-					covers.append((jj%mult,ii%mult))
+		for ind, ii in enumerate(Ap):
+			for jj in Ap[:ind]:
+				if (ii-jj) in gens and (ii-jj) != mult:
+					covers.append((label_map[jj],label_map[ii]))
+
+		if verbose:
+			print(covers)
 
 		#orders the cover relations by the minimal elements that represents the relationship between elements, currently not implemented
 		#coversOrdered=[]
@@ -690,10 +766,11 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 		#        if ((jj[1]-jj[0])%mult)==(ii%mult):
 		#            coversOrdered.append(jj)
 		#print(coversOrdered)
+		Ap=sorted(NSG.AperySet(mult).copy())
 
 		#creates the poset based off the Apery Set modulo the multiplicty and the cover relations
 		Comb=2*[0]
-		Comb[0]=[x%mult for x in Ap]
+		Comb[0]=[x%mult for x in Ap] + oBettiLabels
 		Comb[1]=covers
 		#Comb[1]=coversOrdered
 		PP=Poset(Comb,cover_relations=True)
@@ -707,18 +784,30 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 				for mm in gens[1:]:
 					count += 1
 					for nn in Comb[1]:
-						if ((nn[1]-nn[0])%mult)==(mm%mult):
+						if ((value_map[nn[1]]-value_map[nn[0]])%mult)==(mm%mult):
 							HH.set_edge_label(nn[0],nn[1],count%11)
 				colored={ii:colors[ii] for ii in [0..10]}
-			dd=KunzPosetCoordinates(NSG,shift,verbose,vector_directions) #determines the coordinates for each vertex in the poset
+			dd=KunzPosetCoordinates(NSG,shift,verbose,vector_directions,show_bettis) #determines the coordinates for each vertex in the poset
+			if verbose:
+				print("DD:")
+				print(dd)
+				print()
 
 	#creates an apery poset
 	else:
+		if show_bettis:
+			bettis = NSG.BettiElements()
+			iBettis = [b for ii, b in enumerate(bettis) if b in Ap]
+			oBettis = [b for ii, b in enumerate(bettis) if b not in Ap]
+			Ap += oBettis
+
+			iBettiLabels = iBettis
+			oBettiLabels = oBettis
 		covers=[]
 		#find all the cover relations between the elements
-		for ii in Ap:
-			for jj in Ap:
-				if (ii-jj) in gens:
+		for ind, ii in enumerate(Ap):
+			for jj in Ap[:ind]:
+				if (ii-jj) in gens and (ii - jj) != mult:
 					covers.append((jj,ii))
 
 		#orders the cover relations by the minimal elements that represents the relationship between elements, currently not implemented
@@ -750,12 +839,56 @@ def PlotKunzPoset(NSG,fsize=10,vsize=250,shift=False,colored=True,kunz=True,verb
 				colored={ii:colors[ii] for ii in [0..10]}
 
 			#determines the coordinates for each vertex in the poset
-			dd=AperyPosetCoordinates(NSG,shift,verbose,vector_directions)
+			dd=AperyPosetCoordinates(NSG,shift,verbose,vector_directions,show_bettis)
 
 	if verbose:
 		print('cover relations: '+str(covers))
+		print('colored: ' +str(colored))
 	if plot:
-		return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize)  #plots the pose
+		vcolors = {}
+		if colored:
+			if partition_bettis:
+				polys = []
+				oBettiParts = []
+				kPoset = KunzPoset(numerical_semigroup=NSG)
+				for i in range(len(oBettis)):
+					eqn = [0 for j in range(mult)]
+					facts = NSG.Factorizations(oBettis[i])
+					nonMultFacts = [f for f in facts if f[0] == 0]
+					multFacts = [f for f in facts if f[0] != 0]
+					multFact = max(multFacts, key=lambda x:x[0])
+					assert (len(nonMultFacts) > 0) and (len(multFacts) > 0)
+					for j in range(1, len(nonMultFacts[0])):
+						idx = S.gens[j] % mult
+						eqn[idx] = nonMultFacts[0][j] - multFact[j]
+					eq = Polyhedron(eqns=[eqn])
+					poly = kPoset.Face().intersection(eq)
+
+					polyInd = -1
+					for j, p in enumerate(polys):
+						if p == poly:
+							polyInd = j
+							oBettiParts[j].append(oBettiLabels[i])
+							break
+						
+					if polyInd == -1:
+						polyInd = len(polys)
+						polys.append(poly)
+						oBettiParts.append([oBettiLabels[i]])
+
+				vcolors = {'lightgray' : iBettiLabels}
+				oBettiColors = ['lightcoral', 'navajowhite', 'springgreen', 'aquamarine', 'turquoise', 'skyblue', 'lavendar', 'plum']
+				assert len(oBettiParts) <= len(oBettiColors)
+				print(f"We have {len(oBettiParts)} different partitions of outer bettis")
+				print(oBettiParts)
+				for i, p in enumerate(polys):
+					print(f"Poly {i} has dimension {p.dimension()}")
+
+				for i in range(len(oBettiParts)):
+					vcolors[oBettiColors[i]] = oBettiParts[i]
+			else:
+				vcolors={'lightgray' : iBettiLabels, 'lightcoral': oBettiLabels}
+		return HH.plot(pos=dd,color_by_label=colored,figsize=fsize,vertex_size=vsize,vertex_colors=vcolors)  #plots the pose
 	return PP #returns poset type object if plot set to False
 
 def CheckVectorDirections(num_gens,vector_directions):
