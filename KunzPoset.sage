@@ -389,7 +389,7 @@ class KunzPoset:
 		
 		return ret
 	
-	def OuterBettiElements(self):
+	def OuterElements(self):
 		retdict = {p:[] for p in self.poset}
 		for p in self.poset:
 			psupp = [i for (i,a) in enumerate(self.atoms) if self.poset.covers((p - a) % self.m, p)]
@@ -419,30 +419,35 @@ class KunzPoset:
 						del ret[j]
 						break
 			
-			# check for legit outer betti
-			for j in reversed(range(len(ret))):
-				supp = list(set([i for fact in ret[j] for (i,f) in enumerate(fact) if f != 0]))
-				flag = False
-
-				for i in supp:
-					elem = (retp - self.atoms[i]) % self.m
-
-					bettiless = []
-					for fact in ret[j]:
-						if fact[i] == 0:
-							continue
-
-						fact2 = list(fact)
-						fact2[i] = fact2[i] - 1
-						bettiless.append(tuple(fact2))
-
-					if set(bettiless) != set([tuple(fact) for fact in self.Factorization(elem)]):
-						del ret[j]
-						break
-			
 			retdict[retp] = ret
-
+		
 		return sum(retdict.values(), [])
+	
+	def OuterBettiElements(self):
+		ret = self.OuterElements()
+		# check for legit outer betti
+		for j in reversed(range(len(ret))):
+			retp = sum(a*b for (a,b) in zip(ret[j][0],self.atoms))
+			supp = list(set([i for fact in ret[j] for (i,f) in enumerate(fact) if f != 0]))
+			flag = False
+
+			for i in supp:
+				elem = (retp - self.atoms[i]) % self.m
+
+				bettiless = []
+				for fact in ret[j]:
+					if fact[i] == 0:
+						continue
+
+					fact2 = list(fact)
+					fact2[i] = fact2[i] - 1
+					bettiless.append(tuple(fact2))
+
+				if set(bettiless) != set([tuple(fact) for fact in self.Factorization(elem)]):
+					del ret[j]
+					break
+
+		return ret
 	
 	def Orbit(self):
 		m = self.m
@@ -565,7 +570,7 @@ class KunzPoset:
 		with open(hplane_file_path, 'r') as f:
 			for line in f:
 				if re.match(check, line) is not None:
-					ineq = list(map(int, line.split()))
+					ineq = list(map(int, [s for s in line.split() if len(s) > 0]))
 					hyperplane_list.append(ineq)
 		
 		return hyperplane_list
