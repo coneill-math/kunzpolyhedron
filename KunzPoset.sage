@@ -30,6 +30,8 @@ class KunzPoset:
 			The apery_set of a Numerical Semigroup
 		kunz_coords : List
 			The Kunz Coordinates of a Numerical Semigroup
+		cone_coordinates : List
+			The coordinates of a point in the Kunz cone
 
 		*The Following Require NumericalSemigroup.sage*
 		Download at https://github.com/coneill-math/numsgps-sage
@@ -43,7 +45,7 @@ class KunzPoset:
 
 	def __init__(self, m = None, cover_relations = None, hyperplane_desc = None, \
 			semigroup_gens = None, numerical_semigroup = None, apery_set = None, \
-			kunz_coordinates = None, poset = None):
+			kunz_coordinates = None, cone_coordinates = None, poset = None):
 		"""
 		----------
 		Parameters
@@ -94,6 +96,14 @@ class KunzPoset:
 			self.cover_relations = self.__generate_cover_relations()
 			self.hyperplane_desc = self.__generate_h_desc()
 
+		elif (cone_coordinates is not None):
+			if cone_coordinates[0] == 0:
+				cone_coordinates = cone_coordinates[1:]
+			self.m = len(cone_coordinates) + 1
+			self.cone_coordinates = list(cone_coordinates)
+			self.cover_relations = self.__generate_cover_relations()
+			self.hyperplane_desc = self.__generate_h_desc()
+
 		elif (poset is not None):
 			self.m = len(poset)
 			self.poset = poset
@@ -136,6 +146,12 @@ class KunzPoset:
 			covers += [(0, a % self.m) for a in atoms]
 			return [(i,j) for (i,j,k) in \
 					DiGraph(covers).transitive_reduction().edges()]
+		
+		elif (hasattr(self, "cone_coordinates")):
+			cone_coordinates = [0] + self.cone_coordinates
+			rels = [(i,j) for i in range(self.m) for j in range(self.m) if i != j and cone_coordinates[i] + cone_coordinates[(j-i) % self.m] == cone_coordinates[j]]
+			return [(i,j) for (i,j,k) in \
+					DiGraph(rels).transitive_reduction().edges()]
 
 		# Means we are calling from semigroup_gens if statement
 		elif (not hasattr(self, "hyperplane_desc")):
