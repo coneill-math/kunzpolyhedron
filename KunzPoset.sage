@@ -471,6 +471,16 @@ class KunzPoset:
 		posets = list(set(posets))
 		return [KunzPoset(poset=P) for P in posets]
 	
+	def HasNumericalSemigroups(self):
+		mpvecs = [[a-b for (a,b) in zip(rel[0], rel[1])] for rel in self.MinimalPresentation()]
+		if len(mpvecs) == 0:
+			return True
+		
+		T = ToricLattice(len(mpvecs[0]))
+		L = T.submodule(mpvecs)
+		
+		return all(sum([a*b for (a,b) in zip(self.atoms, v)]) % self.m == 0 for v in L.saturation().basis())
+	
 	def FindSemigroups(self, max_kunz_coord, how_many, min_kunz_coord = 2):
 		m = self.m
 		atoms = self.atoms
