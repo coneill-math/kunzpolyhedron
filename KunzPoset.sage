@@ -240,6 +240,42 @@ class KunzPoset:
 			eqns = [[0] + eqn for eqn in self.hyperplane_desc]
 			self.__face = Polyhedron(ieqs=ieqs, eqns=eqns)
 		return self.__face
+	
+	def FanFace(self):
+		minpres = self.MinimalPresentation()
+		obs = self.OuterBettiElements()
+		
+		eqns = [[0] + list(vector(rel[0]) - vector(rel[1])) for rel in minpres]
+		
+		ieqs = []
+		for ob in obs:
+			element = sum([a*b for (a,b) in zip(self.atoms, ob[0])]) % self.m
+			fact = self.Factorization(element)[0]
+			ieqs.append([0] + list(vector(ob[0]) - vector(fact)))
+		
+		return Polyhedron(ieqs=ieqs, eqns=eqns)
+	
+	def FacetPosets(self, allow_nontrivial_subgroup=True):
+		fanface = self.FanFace()
+		
+		ret = []
+		for F in fanface.faces(fanface.dim()-1):
+			pt = list(sum([vector(ray) for ray in F.rays()]))
+			
+			coords = []
+			for i in range(1,self.m):
+				coords.append(sum([a*b for (a,b) in zip(self.Factorization(i)[0], pt)]))
+			
+			if min(coords) == 0:
+				if allow_nontrivial_subgroup:
+					coords = coords[:coords.index(0)]
+				else:
+					continue
+			
+			newposet = KunzPoset(cone_coordinates=coords)
+			ret.append(newposet)
+		
+		return ret
 
 	def __make_factorizations(self, VERBOSE = False):
 		# Need minimal gens and order in which to check elements
@@ -464,6 +500,90 @@ class KunzPoset:
 					break
 
 		return ret
+	
+	def NonGeoFaceDrop(self, obfact):
+		facts = {p:set([tuple(fact) for fact in self.Factorization(p)]) for p in range(self.m)}
+		p = sum(a*b for (a,b) in zip(obfact,self.atoms)) % self.m
+		
+		if p == 0:
+			return None
+		
+		# print(p, obfact)
+		
+		facts[p] = facts[p] | set([tuple(obfact)])
+		
+		linext = self.poset.linear_extension()
+		
+		while True:
+			covers = [((el-self.atoms[i]) % self.m, el) for el in linext for i in range(len(self.atoms)) if any(fact[i] > 0 for fact in facts[el])]
+			# print(covers)
+			
+			graph = DiGraph(covers)
+			if not graph.is_directed_acyclic():
+				return None
+			
+			pos = FinitePoset(graph)
+			linext = pos.linear_extension()
+			
+			newfacts = {el:set([]) for el in linext}
+			newfacts[0] = facts[0]
+			
+			for el in linext[1:]:
+				for i in range(len(self.atoms)):
+					bel = (el - self.atoms[i]) % self.m
+					if not pos.covers(bel,el):
+						continue
+					
+					adds = []
+					for fact in newfacts[bel]:
+						toadd = list(fact)
+						toadd[i] = toadd[i] + 1
+						adds.append(tuple(toadd))
+					
+					newfacts[el] = newfacts[el] | set(adds)
+			
+			for el in reversed(linext[1:]):
+				for i in range(len(self.atoms)):
+					bel = (el - self.atoms[i]) % self.m
+					if not pos.covers(bel,el):
+						continue
+					
+					adds = []
+					for fact in newfacts[el]:
+						if fact[i] == 0:
+							continue
+						toadd = list(fact)
+						toadd[i] = toadd[i] - 1
+						adds.append(tuple(toadd))
+					
+					newfacts[bel] = newfacts[bel] | set(adds)
+			
+			if newfacts == facts:
+				break
+			
+			facts = newfacts
+			# print(facts)
+		
+		# this automatically prunes any atoms that were lost
+		return KunzPoset(poset=pos)
+	
+	def NonGeoFacets(self):
+		ret = {}
+		posets = set([])
+		
+		for ob in self.OuterBettiElements():
+			pos = self.NonGeoFaceDrop(ob[0])
+			if pos is None:
+				continue
+			
+			if pos.Dimension() == self.Dimension()-1 and pos.poset not in posets:
+				ret[ob[0]] = pos
+				posets.add(pos.poset)
+		
+		return ret
+	
+	def HasFace(self):
+		return self.Dimension() == self.FanFace().dim()
 	
 	def Orbit(self):
 		m = self.m
