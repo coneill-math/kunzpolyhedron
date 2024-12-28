@@ -1,3 +1,4 @@
+from sage.numerical.mip import MixedIntegerLinearProgram
 from sage.combinat.posets.posets import FinitePoset
 import re
 import heapq, queue
@@ -601,67 +602,38 @@ class KunzPoset:
 		
 		return all(sum([a*b for (a,b) in zip(self.atoms, v)]) % self.m == 0 for v in L.saturation().basis())
 	
-	def FindSemigroups(self, max_kunz_coord, how_many, min_kunz_coord = 2):
+	def LocateNumericalSemigroup(self, minimize_genus = True):
 		m = self.m
 		atoms = self.atoms
-		poset = self.poset
-		trucks = []
-		modulus_fails = 0
-		total_attempts = 0
 		
-		if self.Dimension() == len(atoms):
-			while len(trucks) < how_many:
-				total_attempts = total_attempts + 1
-				temp_gens = [m]
-				for ii in atoms:
-					noop= random.randint(min_kunz_coord , max_kunz_coord)*m + ii
-					temp_gens.append(noop)
-				if not sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
-					modulus_fails = modulus_fails + 1
-					if modulus_fails >= 1000 and modulus_fails == total_attempts:
-						print("Likely contains no semigroups")
-						return []
-					continue
-					
-				if gcd(temp_gens) == 1:
-					kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
-					if kpp == poset:
-						trucks.append(temp_gens)
-		else:
-			pres = matrix(QQ, self.BettiMatrix())
-			pres.echelonize()
-			while len(trucks) < how_many:
-				total_attempts = total_attempts + 1
-				temp = [0]*len(atoms)
-				temp_gens = [m]
-				for i in pres.nonpivots():
-					boop = random.randint(min_kunz_coord , max_kunz_coord)*m + atoms[i]
-					temp[i] = boop
-					temp_gens.append(int(boop))
-				vec = vector(temp)
-				othervars = pres*vec
-				# print(othervars)
-				for jj in othervars: 
-					temp_gens.append(int(-1*jj))
-				# print(temp_gens)
-				if list(sorted([y%m for y in temp_gens])) != list(sorted([0] + atoms)):
-					modulus_fails = modulus_fails + 1
-					if modulus_fails >= 10000 and modulus_fails == total_attempts:
-						print("Likely contains no semigroups")
-						return []
-					continue
-				if gcd(temp_gens) == 1 and all(x>0 for x in temp_gens):
-					kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
-					#kpp.show()
-					if kpp == poset:
-						trucks.append(temp_gens)
-					else:
-						continue
-				else:
-					continue
-		return trucks
-	
+		if not self.HasNumericalSemigroups():
+			return None
+		
+		blp = MixedIntegerLinearProgram(maximization=False)
+		z = blp.new_variable(integer=True, nonnegative=True)
 
+		for rel in self.FullMinimalPresentation():
+		    if rel[1][0] == 0:
+		        blp.add_constraint(sum(z[i]*ri for (i,ri) in zip(atoms,rel[0][1:])) == sum(z[i]*ri for (i,ri) in zip(atoms,rel[1][1:])))
+		    else:
+		        blp.add_constraint(sum(z[i]*ri for (i,ri) in zip(atoms,rel[0][1:])) >= 1 + sum(z[i]*ri for (i,ri) in zip(atoms,rel[1][1:])))
+
+		q = blp.new_variable(integer=True, nonnegative=True)
+		for i in P.atoms:
+			blp.add_constraint(m*(q[i]+1) + i == z[i])
+		
+		# if the region is not bounded, GLPK will sometimes hang
+		blp.add_constraint(sum(z[i] for i in atoms) <= m^3)
+
+		if minimize_genus:
+			blp.set_objective(sum(sum(z[i]*fi for (i,fi) in zip(atoms,self.Factorization(i)[0])) for i in range(m)))
+		
+		# blp.show()
+		solution = blp.solve()
+
+		zvals = blp.get_values(z)
+		return NumericalSemigroup([m] + [int(zvals[i]) for i in atoms])
+		
 	@staticmethod
 	def KunzInequalities(m):
 		return KunzPoset.__GeneralGroupConeInequalities(AbelianGroup([m]))
@@ -1114,3 +1086,62 @@ class KunzPoset:
 		outerbettifacts = self.OuterBettiFactorizationSets()
 		return {d:list(sorted([sum([a*b for (a,b) in zip([0]+self.atoms,factlist[0])])%self.m for factlist in outerbettifacts[d]])) for d in range(len(self.atoms))}
 	
+	def _FindSemigroupsOld(self, max_kunz_coord, how_many, min_kunz_coord = 2):
+		poset = self.poset
+		trucks = []
+		modulus_fails = 0
+		total_attempts = 0
+		
+		if self.Dimension() == len(atoms):
+			while len(trucks) < how_many:
+				total_attempts = total_attempts + 1
+				temp_gens = [m]
+				for ii in atoms:
+					noop= random.randint(min_kunz_coord , max_kunz_coord)*m + ii
+					temp_gens.append(noop)
+				if not sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
+					modulus_fails = modulus_fails + 1
+					if modulus_fails >= 1000 and modulus_fails == total_attempts:
+						print("Likely contains no semigroups")
+						return []
+					continue
+					
+				if gcd(temp_gens) == 1:
+					kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
+					if kpp == poset:
+						trucks.append(temp_gens)
+		else:
+			pres = matrix(QQ, self.BettiMatrix())
+			pres.echelonize()
+			while len(trucks) < how_many:
+				total_attempts = total_attempts + 1
+				temp = [0]*len(atoms)
+				temp_gens = [m]
+				for i in pres.nonpivots():
+					boop = random.randint(min_kunz_coord , max_kunz_coord)*m + atoms[i]
+					temp[i] = boop
+					temp_gens.append(int(boop))
+				vec = vector(temp)
+				othervars = pres*vec
+				# print(othervars)
+				for jj in othervars: 
+					temp_gens.append(int(-1*jj))
+				# print(temp_gens)
+				if list(sorted([y%m for y in temp_gens])) != list(sorted([0] + atoms)):
+					modulus_fails = modulus_fails + 1
+					if modulus_fails >= 10000 and modulus_fails == total_attempts:
+						print("Likely contains no semigroups")
+						return []
+					continue
+				if gcd(temp_gens) == 1 and all(x>0 for x in temp_gens):
+					kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
+					#kpp.show()
+					if kpp == poset:
+						trucks.append(temp_gens)
+					else:
+						continue
+				else:
+					continue
+		return trucks
+	
+
