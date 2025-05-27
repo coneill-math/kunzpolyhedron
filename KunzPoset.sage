@@ -426,7 +426,7 @@ class KunzPoset:
 		
 		return self.__dimension
 	
-	def FullMinimalPresentation(self, kunz_coords = None):
+	def FullMinimalPresentation(self, kunz_coords = None, cone_coords = None):
 		outerfacts = self.OuterBettiElements()
 		
 		ret = [[[0] + p1, [0] + p2] for [p1,p2] in self.MinimalPresentation()]
@@ -437,6 +437,8 @@ class KunzPoset:
 			if kunz_coords is not None:
 				rightfact[0] = sum([(b-c)*kunz_coords[a2-1] for (a2,b,c) in zip(self.atoms, leftfact[1:], rightfact[1:])])
 				rightfact[0] = rightfact[0] + sum([(b-c)*a2 for (a2,b,c) in zip([0]+self.atoms, leftfact, rightfact)])/self.m
+			if cone_coords is not None:
+				rightfact[0] = sum([(b-c)*cone_coords[a2-1] for (a2,b,c) in zip(self.atoms, leftfact[1:], rightfact[1:])])/self.m
 			
 			ret.append([leftfact, rightfact])
 		
