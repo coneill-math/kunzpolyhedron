@@ -68,7 +68,7 @@ class KunzPoset:
 			if m is None:
 				raise ValueError('You did not pass the multiplicity for the KunzPoset.')
 			self.m = m
-			self.hyperplane_desc = list(hyperplane_desc)
+			self.hyperplane_desc = [tuple(hyp) for hyp in hyperplane_desc]
 			self.cover_relations = self.__generate_cover_relations()
 
 		# This should just be a list or a tuple
@@ -227,7 +227,7 @@ class KunzPoset:
 			ieq[full_relation[0] - 1] += 1
 			ieq[full_relation[1] - 1] += 1
 			ieq[full_relation[2] - 1] = -1
-			h_desc.append(ieq)
+			h_desc.append(tuple(ieq))
 
 		return h_desc
 
@@ -635,7 +635,11 @@ class KunzPoset:
 
 		zvals = blp.get_values(z)
 		return NumericalSemigroup([m] + [int(zvals[i]) for i in atoms])
-		
+	
+	def ContainsFaceOfPoset(self, P2):
+		setofhyps = set(P2.hyperplane_desc)
+		return all((hyp in setofhyps) for hyp in self.hyperplane_desc)
+
 	@staticmethod
 	def KunzInequalities(m):
 		return KunzPoset.__GeneralGroupConeInequalities(AbelianGroup([m]))
