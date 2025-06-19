@@ -621,7 +621,7 @@ class KunzPoset:
 		        blp.add_constraint(sum(z[i]*ri for (i,ri) in zip(atoms,rel[0][1:])) >= 1 + sum(z[i]*ri for (i,ri) in zip(atoms,rel[1][1:])))
 
 		q = blp.new_variable(integer=True, nonnegative=True)
-		for i in P.atoms:
+		for i in atoms:
 			blp.add_constraint(m*(q[i]+1) + i == z[i])
 		
 		# if the region is not bounded, GLPK will sometimes hang
