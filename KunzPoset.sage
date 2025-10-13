@@ -3,6 +3,9 @@ from sage.combinat.posets.posets import FinitePoset
 import re
 import heapq, queue
 
+import itertools, random
+from multiprocessing import Pool
+
 
 class KunzPoset:
 	"""
@@ -238,7 +241,7 @@ class KunzPoset:
 	def Face(self):
 		if (not hasattr(self, "_KunzPoset__face")):
 			ieqs = KunzPoset.KunzInequalities(self.m)
-			eqns = [[0] + eqn for eqn in self.hyperplane_desc]
+			eqns = [[0] + list(eqn) for eqn in self.hyperplane_desc]
 			self.__face = Polyhedron(ieqs=ieqs, eqns=eqns)
 		return self.__face
 	
@@ -615,10 +618,10 @@ class KunzPoset:
 		z = blp.new_variable(integer=True, nonnegative=True)
 
 		for rel in self.FullMinimalPresentation():
-		    if rel[1][0] == 0:
-		        blp.add_constraint(sum(z[i]*ri for (i,ri) in zip(atoms,rel[0][1:])) == sum(z[i]*ri for (i,ri) in zip(atoms,rel[1][1:])))
-		    else:
-		        blp.add_constraint(sum(z[i]*ri for (i,ri) in zip(atoms,rel[0][1:])) >= 1 + sum(z[i]*ri for (i,ri) in zip(atoms,rel[1][1:])))
+			if rel[1][0] == 0:
+				blp.add_constraint(sum(z[i]*ri for (i,ri) in zip(atoms,rel[0][1:])) == sum(z[i]*ri for (i,ri) in zip(atoms,rel[1][1:])))
+			else:
+				blp.add_constraint(sum(z[i]*ri for (i,ri) in zip(atoms,rel[0][1:])) >= 1 + sum(z[i]*ri for (i,ri) in zip(atoms,rel[1][1:])))
 
 		q = blp.new_variable(integer=True, nonnegative=True)
 		for i in atoms:
@@ -722,7 +725,7 @@ class KunzPoset:
 				
 				if faceindices != None and curindex not in faceindices:
 					continue
-				
+
 				(face, d) = tuple(line.split())
 				dim = multiplicity - 1 - int(d)
 				
@@ -747,407 +750,645 @@ class KunzPoset:
 	def ReadFacesFromNormaliz(face_lattice_file_path='data.fac', hplane_file_path='data.out', faceindices=None, dimension=None):
 		return list(KunzPoset.IterateFacesFromNormaliz(face_lattice_file_path=face_lattice_file_path, 
 			hplane_file_path=hplane_file_path, faceindices=faceindices, dimension=dimension))
+
+
+
+
+
+
+
+
+
+class KunzFan:
+	def __init__(self, m, A):
+		self.m = m
+		self.A = list(A)
+		
+		self.posets = None
+		self.chambers = None
+		self.fullcone = None
 	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	# old implementation
-	def __OuterBettiFactorizationSets(self):
-		ret = []
-		for p in self.poset:
-			for (i,a) in enumerate(self.atoms):
-				if self.poset.covers(p, (p + a) % self.m):
+	def CircleOfLights(self, V):
+		m = self.m
+		A = self.A
+		
+		atomvals = {a:v for (a,v) in zip(A,V)}
+		
+		cone_coordinates = [oo for i in range(m)]
+		
+		queue = [(0,0)]
+		
+		i = -1
+		while i+1 < len(queue):
+			i = i + 1
+			
+			(N,v) = queue[i]
+			if cone_coordinates[N] < v:
+				continue
+			
+			for a in A:
+				(N2,v2) = ((N + a) % m, v + atomvals[a])
+				if v2 < cone_coordinates[N2]:
+					cone_coordinates[N2] = v2
+					queue.append((N2,v2))
+		
+		return cone_coordinates[1:]
+
+	def ConeForPoset(self, P):
+		m = self.m
+		A = self.A
+
+		eqns = []
+		ieqs = []
+		for rel in P.FullMinimalPresentation():
+			eq = {a:b-c for (a,b,c) in zip(P.atoms,rel[0][1:],rel[1][1:])}
+			eq = [0] + [eq[a] if a in eq else 0 for a in A]
+
+			if rel[1][0] == 0:
+				eqns.append(eq)
+			else:
+				ieqs.append(eq)
+
+		for a2 in A:
+			if a2 not in P.atoms:
+				fact = P.Factorization(a2)[0]
+				eq = {a:b for (a,b) in zip(P.atoms,fact)}
+				eq[a2] = -1
+				eq = [0] + [eq[a] if a in eq else 0 for a in A]
+				eqns.append(eq)
+
+		return Polyhedron(eqns=eqns, ieqs=ieqs+matrix.identity(len(A)+1).rows()[1:])
+
+	def DoKunzWalk(self, req_facts=[], compute_all_faces=False):
+		m = self.m
+		A = self.A
+
+		facequeue = []
+		unmatched = set([])
+		
+		retchambers = []
+		retposets = []
+		
+		# build the cone in which the fan lives
+		# TODO refine this process
+		ieqs = []
+		for i in range(len(A)):
+			ranges = [list(range(m))]*len(A)
+			ranges[i] = [-1]
+			for ieq in itertools.product(*ranges):
+				if sum(ieq) <= m - len(A) and sum([c*a for (c,a) in zip(ieq,A)]) % m == 0:
+					ieqs.append((0,) + ieq)
+		
+		sub_facts = []
+		for fact in req_facts:
+			subfactranges = [list(range(fact[i]+1)) if fact[i] > 0 else [0] for i in range(len(A))]
+			for subfact in itertools.product(*subfactranges):
+				sub_facts.append(subfact)
+		sub_facts = [subfact for subfact in set(sub_facts) if sum(subfact) > 1]
+		
+		usedelms = []
+		for subfact in sub_facts:
+			p = sum([c*a for (c,a) in zip(subfact,A)]) % m
+			if p == 0 or p in A or p in usedelms:
+				continue
+			
+			usedelms.append(p)
+			
+			ranges = [list(range(m)) if subfact[i] == 0 else [0] for i in range(len(A))]
+			for ieq in itertools.product(*ranges):
+				if sum(ieq) >= m:
 					continue
-
-				newbetti = []
-				for fact in self.Factorization(p):
-					fact2 = list(fact)
-					fact2[i] = fact2[i] + 1
-					newbetti.append(tuple(fact2))
-
-				ret.append(newbetti)
-
-		# merge connected factorization sets
-		for j in reversed(range(len(ret))):
-			for k in reversed(range(j)):
-				if any([f in ret[j] for f in ret[k]]):
-					ret[k] = list(set(ret[k] + ret[j]))
-					del ret[j]
+				ieq2 = tuple([c1-c2 for (c1,c2) in zip(ieq,subfact)])
+				if sum([c*a for (c,a) in zip(ieq2,A)]) % m == 0:
+					ieqs.append((0,) + ieq2)
+		
+		fullcone = Polyhedron(ieqs=ieqs+matrix.identity(len(A)+1).rows()[1:])
+		self.fullcone = fullcone
+		
+		if fullcone.dimension() < len(A):
+			self.posets = retposets
+			self.chambers = retchambers
+			return
+		
+		# seed the process with a central(ish) chamber
+		initpt = list(sum([vector(ray) for ray in fullcone.rays()]))
+		P = KunzPoset(cone_coordinates=self.CircleOfLights(initpt))
+		
+		while P.Dimension() < len(A):
+			randray = fullcone.rays()[random.randint(0,len(fullcone.rays())-1)]
+			initpt = [v1+v2 for (v1,v2) in zip(initpt, randray)]
+			P = KunzPoset(cone_coordinates=self.CircleOfLights(initpt))
+		
+		chamber = self.ConeForPoset(P)
+		
+		retposets.append(P)
+		retchambers.append(chamber)
+		
+		for facet in chamber.facets():
+			F = facet.as_polyhedron()
+			
+			facequeue.append((F, tuple(facet.ambient_Hrepresentation()[0][1:])))
+			unmatched.add(F)
+		
+		# walk to new chambers until fan is complete
+		curface = 0
+		while curface < len(facequeue):
+			(F,normvec) = facequeue[curface]
+			curface = curface + 1
+			
+			if F not in unmatched:
+				continue
+			
+			interiorpt = [sum([ray[i] for ray in F.rays()]) for i in range(len(A))]
+			if not(fullcone.interior_contains(interiorpt)):
+				unmatched.remove(F)
+				continue
+			
+			addvec = [v/10 for v in normvec]
+			P = None
+			chamber = None
+			facets = None
+			nvecs = None
+			
+			while True:
+				addvec = [v/10 for v in addvec]
+				pt = [c-b for (c,b) in zip(interiorpt, addvec)]
+				P = KunzPoset(cone_coordinates=self.CircleOfLights(pt))
+				chamber = self.ConeForPoset(P)
+				facets = [facet.as_polyhedron() for facet in chamber.facets()]
+				nvecs = [tuple(facet.ambient_Hrepresentation()[0][1:]) for facet in chamber.facets()]
+				if P.Dimension() == len(A) and F in facets:
 					break
-		
-		# check for legit outer betti
-		for j in reversed(range(len(ret))):
-			supp = list(set([i for fact in ret[j] for (i,f) in enumerate(fact) if f != 0]))
-			flag = False
-
-			for i in supp:
-				elem = (sum([self.atoms[k]*f for (k,f) in enumerate(ret[j][0])]) - self.atoms[i]) % self.m
-
-				bettiless = []
-				for fact in ret[j]:
-					if fact[i] == 0:
-						continue
-
-					fact2 = list(fact)
-					fact2[i] = fact2[i] - 1
-					bettiless.append(tuple(fact2))
-
-				if set(bettiless) != set([tuple(fact) for fact in self.Factorization(elem)]):
-					del ret[j]
-					break
-
-		return ret
-	
-	# attempted without using factorizations, 
-	# only medium confidence of correrctness
-	def __OuterBettiSupports(self):
-		psupps = {p:[] for p in self.poset}
-		ins = {p:[] for p in self.poset}
-		ret = []
-		
-		# build in sets
-		for p in self.poset:
-			psupps[p] = [i for (i,a) in enumerate(self.atoms) if self.poset.covers((p - a) % self.m, p)]
 			
-			for (i,a) in enumerate(self.atoms):
-				if self.poset.covers(p, (p + a) % self.m):
-					continue
-				
-				# verify the resulting factorizations will actually live in an outer Betti element
-				if any(not self.poset.covers((p - self.atoms[j]) % self.m, (p - self.atoms[j] + a) % self.m) for j in psupps[p]):
-					continue
-
-				ins[(p + a) % self.m].append(i)
-		
-		for p in self.poset:
-			# build support set connected components
-			supps = [list(set(psupps[(p - self.atoms[i]) % self.m] + [i])) for i in ins[p]]
-			for j in reversed(range(len(supps))):
-				for k in reversed(range(j)):
-					if any(i in supps[j] for i in supps[k]):
-						supps[k] = list(set(supps[k] + supps[j]))
-						del supps[j]
-						break
+			retposets.append(P)
+			retchambers.append(chamber)
 			
-			ret = ret + [(p,supp) for supp in supps if all(i in ins[p] for i in supp)]
-		
-		# build actual outer bettis
-		for j in range(len(ret)):
-			(p,supp) = ret[j]
-			
-			outerbetti = []
-			for i in supp:
-				for fact in self.Factorization((p - self.atoms[i]) % self.m):
-					fact2 = list(fact)
-					fact2[i] = fact2[i] + 1
-					outerbetti.append(tuple(fact2))
-			
-			ret[j] = list(set(outerbetti))
-		
-		return ret
-	
-	def __outerelementinfo(self, upper_factorizations):
-		# TODO: build poset too
-		factlistsbyfacts = {}
-		outerposetelements = []
-		outerposetcoverrelations = []
-		minpreselements = []
-		outerminrelations = []
-		allfacts = queue.Queue()
-		minpreschecks = []
-		
-		for p in self.poset.linear_extension():
-			factlist = [list(sorted([tuple(f) for f in self.Factorization(p)])), []]
-			outerposetelements.append(factlist)
-			
-			for f in factlist[0]:
-				factlistsbyfacts[tuple(f)] = len(outerposetelements) - 1
-				for i in range(len(f)):
-					f2 = list(f)
-					f2[i] = f2[i] + 1
-					allfacts.put(tuple(f2))
-					minpreschecks.append(tuple(f2))
-		
-		upperfacts = set([tuple(f) for f in upper_factorizations if tuple(f) not in factlistsbyfacts])
-		
-		def parsenext(f):
-			factlist = [[f], []]
-			nextcovers = []
-			gensbacked = []
-			runagain = True
-			
-			while runagain:
-				runagain = False
-				for i in range(len(f)):
-					if i in gensbacked:
-						continue
-					
-					for ff in factlist[0]:
-						if ff[i] > 0:
-							break
-					
-					if ff[i] == 0:
-						continue
-					
-					runagain = True
-					gensbacked = gensbacked + [i]
-					
-					backone = list(ff)
-					backone[i] = backone[i] - 1
-					
-					if tuple(backone) not in factlistsbyfacts:
-						return ([],[])
-					
-					cover = factlistsbyfacts[tuple(backone)]
-					nextcovers.append(cover)
-					
-					for j in [0,1]:
-						for ff2 in outerposetelements[cover][j]:
-							ff3 = list(ff2)
-							ff3[i] = ff3[i] + 1
-							
-							factlist[j].append(tuple(ff3))
-			
-			factlist[0] = list(set(factlist[0]))
-			factlist[1] = list(set(factlist[1]))
-			
-			if len(factlist[1]) == 0:
-				elem = sum([a*fi for (a,fi) in zip(self.atoms,f)]) % self.m
-				if list(f) not in self.Factorization(elem):
-					factlist[1] = factlist[1] + [tuple(f2) for f2 in self.Factorization(elem)]
-			
-			return (factlist, nextcovers)
-		
-		# compute full minimal presentation first, otherwise order gets messed up
-		minpresouterelements = []
-		minpresfacts = {}
-		for f in minpreschecks:
-			if f in factlistsbyfacts or f in minpresfacts:
-				continue
-			
-			(factlist, nextcovers) = parsenext(f)
-			
-			if factlist == []:
-				continue
-			
-			for ff in factlist[0]:
-				minpresfacts[ff] = True
-			minpresouterelements.append((factlist, nextcovers))
-			# don't update factlistsbyfacts yet!
-		
-		# do Betti matrix merging
-		for (factlist, nextcovers) in minpresouterelements:
-			newindex = len(outerposetelements)
-			for elem in minpreselements:
-				leftfact = outerposetelements[elem][0][0]
-				rightfact = factlist[0][0]
-				thevec = vector([a-b for (a,b) in zip(leftfact, rightfact)])
-				try:
-					self.BettiMatrix().solve_left(thevec)
-				except ValueError as e:
-					continue
-				
-				newindex = elem
-				break
-			
-			# actually new
-			if newindex == len(outerposetelements):
-				# redundant but better than missing some
-				outerposetelements.append([[],factlist[1]])
-				minpreselements.append(newindex)
-				
-				outerposetcoverrelations = outerposetcoverrelations + [(c, newindex) for c in nextcovers]
-				
-				f = factlist[0][0]
-				# add next things to try
-				for i in range(len(f)):
-					f2 = list(f)
-					f2[i] = f2[i] + 1
-					allfacts.put(tuple(f2))
-			
-			if factlist[0][0] in outerposetelements[newindex][0]:
-				continue
-			
-			for ff in factlist[0]:
-				outerposetelements[newindex][0].append(ff)
-				factlistsbyfacts[ff] = newindex
-				if ff in upperfacts:
-					upperfacts.remove(ff)
-		
-		# now compute the higher ones
-		while len(upperfacts) > 0:
-			f = allfacts.get()
-			
-			if f in factlistsbyfacts:
-				continue
-			
-			(factlist, nextcovers) = parsenext(f)
-			
-			if factlist == []:
-				continue
-			
-			newindex = len(outerposetelements)
-			# isnew = True
-			# isminpres = False
-			
-			# # indicates this has a minmal relation
-			# if all(cover < self.m for cover in nextcovers):
-			#     isminpres = True
-			#     outerminrelations.append([[0] + list(factlist[0][0]), [1] + list(factlist[1][0])])
-			#     for elem in minpreselements:
-			#         leftfact = outerposetelements[elem][0][0]
-			#         rightfact = factlist[0][0]
-			#         thevec = vector([a-b for (a,b) in zip(leftfact, rightfact)])
-			#         try:
-			#             self.BettiMatrix().solve_left(thevec)
-			#         except ValueError as e:
-			#             continue
-					
-			#         # these are secretly the same element
-			#         isnew = False
-			#         newindex = elem
-			#         outerposetelements[elem][0] = outerposetelements[elem][0] + factlist[0]
-			#         break
-			
-			# if isnew:
-			#     outerposetelements.append(factlist)
-			
-			# if isnew and isminpres:
-			#     minpreselements.append(newindex)
-			
-			outerposetelements.append(factlist)
-			
-			outerposetcoverrelations = outerposetcoverrelations + [(c, newindex) for c in nextcovers]
-			for ff in factlist[0]:
-				factlistsbyfacts[ff] = newindex
-				if ff in upperfacts:
-					upperfacts.remove(ff)
-			
-			# add next things to try
-			for i in range(len(f)):
-				f2 = list(f)
-				f2[i] = f2[i] + 1
-				allfacts.put(tuple(f2))
-		
-		for (op,factlist) in enumerate(outerposetelements):
-			unifiedfacts = [(0,) + ff for ff in factlist[0]]
-			unifiedfacts = unifiedfacts + [(1,) + ff for ff in factlist[1]]
-			outerposetelements[op] = unifiedfacts
-		
-		outerposet = Poset((list(range(len(outerposetelements))), outerposetcoverrelations), cover_relations=True)
-		
-		return (outerposet, outerposetelements, minpreselements, outerminrelations)
-	
-	def __OuterElementPoset(self, upper_factorizations = None):
-		if upper_factorizations is None:
-			upper_factorizations = [tuple([fi+1 for fi in f]) for p in self.poset.maximal_elements() for f in self.Factorization(p)]
-		
-		(outerposet, outerposetelements, outerminpreselements, outerminrelations) = self.__outerelementinfo(upper_factorizations)
-		
-		return (outerposet, outerposetelements)
-	
-	def __FullMinimalPresentation(self, kunz_coords = None):
-		upper_factorizations = [tuple([(fi+1 if i == j else fi) for (i,fi) in enumerate(self.Factorization(p)[0])]) for p in self.poset.maximal_elements() for j in range(len(self.atoms))]
-		
-		(outerposet, outerposetelements, outerminpreselements, outerminrelations) = self.__outerelementinfo(upper_factorizations)
-		
-		ret = [[[0] + p1, [0] + p2] for [p1,p2] in self.MinimalPresentation()]
-		
-		for [leftfact, rightfact] in outerminrelations:
-			if kunz_coords is not None:
-				rightfact[0] = sum([(b-c)*kunz_coords[a2-1] for (a2,b,c) in zip(self.atoms, leftfact[1:], rightfact[1:])])
-				rightfact[0] = rightfact[0] + sum([(b-c)*a2 for (a2,b,c) in zip([0]+self.atoms, leftfact, rightfact)])/self.m
-			
-			ret.append([leftfact, rightfact])
-		
-		return ret
-	
-	def __OuterBettiFactorizationSets(self):
-		upper_factorizations = [tuple([fi+1 for fi in f]) for p in self.poset.maximal_elements() for f in self.Factorization(p)]
-		
-		(outerposet, outerfacts, outerminpreselements, outerminrelations) = self.__outerelementinfo(upper_factorizations)
-		
-		ret = {d:[] for d in range(len(self.atoms))}
-		for op in outerposet:
-			factlist = outerfacts[op]
-			sdc = SimplicialComplex(maximal_faces=[[i for i in range(len(f)) if f[i] > 0] for f in factlist], maximality_check=True)
-			hom = sdc.homology()
-			for d in range(len(hom)):
-				if len(hom[d].gens()) > 0:
-					ret[d] = ret[d] + [factlist]*len(hom[d].gens())
-		
-		return ret
-	
-	def __OuterBettiElements(self):
-		outerbettifacts = self.OuterBettiFactorizationSets()
-		return {d:list(sorted([sum([a*b for (a,b) in zip([0]+self.atoms,factlist[0])])%self.m for factlist in outerbettifacts[d]])) for d in range(len(self.atoms))}
-	
-	def _FindSemigroupsOld(self, max_kunz_coord, how_many, min_kunz_coord = 2):
-		poset = self.poset
-		trucks = []
-		modulus_fails = 0
-		total_attempts = 0
-		
-		if self.Dimension() == len(atoms):
-			while len(trucks) < how_many:
-				total_attempts = total_attempts + 1
-				temp_gens = [m]
-				for ii in atoms:
-					noop= random.randint(min_kunz_coord , max_kunz_coord)*m + ii
-					temp_gens.append(noop)
-				if not sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
-					modulus_fails = modulus_fails + 1
-					if modulus_fails >= 1000 and modulus_fails == total_attempts:
-						print("Likely contains no semigroups")
-						return []
-					continue
-					
-				if gcd(temp_gens) == 1:
-					kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
-					if kpp == poset:
-						trucks.append(temp_gens)
-		else:
-			pres = matrix(QQ, self.BettiMatrix())
-			pres.echelonize()
-			while len(trucks) < how_many:
-				total_attempts = total_attempts + 1
-				temp = [0]*len(atoms)
-				temp_gens = [m]
-				for i in pres.nonpivots():
-					boop = random.randint(min_kunz_coord , max_kunz_coord)*m + atoms[i]
-					temp[i] = boop
-					temp_gens.append(int(boop))
-				vec = vector(temp)
-				othervars = pres*vec
-				# print(othervars)
-				for jj in othervars: 
-					temp_gens.append(int(-1*jj))
-				# print(temp_gens)
-				if list(sorted([y%m for y in temp_gens])) != list(sorted([0] + atoms)):
-					modulus_fails = modulus_fails + 1
-					if modulus_fails >= 10000 and modulus_fails == total_attempts:
-						print("Likely contains no semigroups")
-						return []
-					continue
-				if gcd(temp_gens) == 1 and all(x>0 for x in temp_gens):
-					kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
-					#kpp.show()
-					if kpp == poset:
-						trucks.append(temp_gens)
-					else:
-						continue
+			for (F2,nv2) in zip(facets, nvecs):
+				if F2 in unmatched:
+					unmatched.remove(F2)
 				else:
-					continue
-		return trucks
+					facequeue.append((F2, nv2))
+					unmatched.add(F2)
+		
+		self.posets = retposets
+		self.chambers = retchambers
+
+		if not compute_all_faces:
+			return
+
+		pts = []
+		for chamber in self.chambers:
+			for d in [1..len(A)-1]:
+				for F in chamber.faces(d):
+					v = sum([vector(r) for r in F.rays()], vector([0]*len(A)))
+					if not fullcone.interior_contains(v):
+						continue
+					pts.append(tuple(v))
+		
+		pts = list(set(pts))
+		for v in pts:
+			P = KunzPoset(cone_coordinates=self.CircleOfLights(v))
+			self.posets.append(P)
+
+
+	def Plot(self):
+		if self.chambers == None or len(self.chambers) == 0:
+			print("You must walk first!")
+			return
+
+		def theproj(v):
+			v = vector(v) - vector([sum(v)/3]*3)
+			mat = matrix([
+				[ 1/3, 1/3, 1/3],
+				[ 1/3,-1/3, 1/3],
+				[-2/3, 0/3, 1/3],
+				# [-1/2, 1/2, 1/2, 1/2],
+				# [ 1/2,-1/2, 1/2, 1/2],
+				# [ 1/2, 1/2,-1/2, 1/2],
+				# [-1/2,-1/2,-1/2, 1/2],
+			]).inverse()
+			return (mat*v)[:2]
+
+		if self.fullcone.dimension() == 2:
+			box = Polyhedron(ieqs=[[0,1,0], [0,0,1], [10,-1,-1]])
+			pl = chambers[0].intersection(box).plot()
+			for C in chambers:
+				pl = pl + C.intersection(box).plot()
+			return pl
+
+		if self.fullcone.dimension() == 3:
+			hyp = Polyhedron(eqns=[[-1,1,1,1]])
+			verts = []
+			edges = []
+
+			for C in chambers:
+				P = C.intersection(hyp)
+				for v in P.vertices():
+					verts.append(tuple(theproj(v)))
+				for ed in P.faces(1):
+					edges.append(tuple([theproj(v) for v in ed.vertices()]))
+
+			pl = points(verts, size=30, color='black', axes=False)
+
+			for ed in edges:
+				pl = pl + line(ed, thickness=0.5, color='black', axes=False)
+
+			pl = pl + points(verts, size=30, color='black', axes=False)
+
+			# pl.show(viewer='threejs', online=True)
+			return pl
+
+
+
+
+
+	# # old implementation
+	# def __OuterBettiFactorizationSets(self):
+	# 	ret = []
+	# 	for p in self.poset:
+	# 		for (i,a) in enumerate(self.atoms):
+	# 			if self.poset.covers(p, (p + a) % self.m):
+	# 				continue
+
+	# 			newbetti = []
+	# 			for fact in self.Factorization(p):
+	# 				fact2 = list(fact)
+	# 				fact2[i] = fact2[i] + 1
+	# 				newbetti.append(tuple(fact2))
+
+	# 			ret.append(newbetti)
+
+	# 	# merge connected factorization sets
+	# 	for j in reversed(range(len(ret))):
+	# 		for k in reversed(range(j)):
+	# 			if any([f in ret[j] for f in ret[k]]):
+	# 				ret[k] = list(set(ret[k] + ret[j]))
+	# 				del ret[j]
+	# 				break
+		
+	# 	# check for legit outer betti
+	# 	for j in reversed(range(len(ret))):
+	# 		supp = list(set([i for fact in ret[j] for (i,f) in enumerate(fact) if f != 0]))
+	# 		flag = False
+
+	# 		for i in supp:
+	# 			elem = (sum([self.atoms[k]*f for (k,f) in enumerate(ret[j][0])]) - self.atoms[i]) % self.m
+
+	# 			bettiless = []
+	# 			for fact in ret[j]:
+	# 				if fact[i] == 0:
+	# 					continue
+
+	# 				fact2 = list(fact)
+	# 				fact2[i] = fact2[i] - 1
+	# 				bettiless.append(tuple(fact2))
+
+	# 			if set(bettiless) != set([tuple(fact) for fact in self.Factorization(elem)]):
+	# 				del ret[j]
+	# 				break
+
+	# 	return ret
+	
+	# # attempted without using factorizations, 
+	# # only medium confidence of correrctness
+	# def __OuterBettiSupports(self):
+	# 	psupps = {p:[] for p in self.poset}
+	# 	ins = {p:[] for p in self.poset}
+	# 	ret = []
+		
+	# 	# build in sets
+	# 	for p in self.poset:
+	# 		psupps[p] = [i for (i,a) in enumerate(self.atoms) if self.poset.covers((p - a) % self.m, p)]
+			
+	# 		for (i,a) in enumerate(self.atoms):
+	# 			if self.poset.covers(p, (p + a) % self.m):
+	# 				continue
+				
+	# 			# verify the resulting factorizations will actually live in an outer Betti element
+	# 			if any(not self.poset.covers((p - self.atoms[j]) % self.m, (p - self.atoms[j] + a) % self.m) for j in psupps[p]):
+	# 				continue
+
+	# 			ins[(p + a) % self.m].append(i)
+		
+	# 	for p in self.poset:
+	# 		# build support set connected components
+	# 		supps = [list(set(psupps[(p - self.atoms[i]) % self.m] + [i])) for i in ins[p]]
+	# 		for j in reversed(range(len(supps))):
+	# 			for k in reversed(range(j)):
+	# 				if any(i in supps[j] for i in supps[k]):
+	# 					supps[k] = list(set(supps[k] + supps[j]))
+	# 					del supps[j]
+	# 					break
+			
+	# 		ret = ret + [(p,supp) for supp in supps if all(i in ins[p] for i in supp)]
+		
+	# 	# build actual outer bettis
+	# 	for j in range(len(ret)):
+	# 		(p,supp) = ret[j]
+			
+	# 		outerbetti = []
+	# 		for i in supp:
+	# 			for fact in self.Factorization((p - self.atoms[i]) % self.m):
+	# 				fact2 = list(fact)
+	# 				fact2[i] = fact2[i] + 1
+	# 				outerbetti.append(tuple(fact2))
+			
+	# 		ret[j] = list(set(outerbetti))
+		
+	# 	return ret
+	
+	# def __outerelementinfo(self, upper_factorizations):
+	# 	# TODO: build poset too
+	# 	factlistsbyfacts = {}
+	# 	outerposetelements = []
+	# 	outerposetcoverrelations = []
+	# 	minpreselements = []
+	# 	outerminrelations = []
+	# 	allfacts = queue.Queue()
+	# 	minpreschecks = []
+		
+	# 	for p in self.poset.linear_extension():
+	# 		factlist = [list(sorted([tuple(f) for f in self.Factorization(p)])), []]
+	# 		outerposetelements.append(factlist)
+			
+	# 		for f in factlist[0]:
+	# 			factlistsbyfacts[tuple(f)] = len(outerposetelements) - 1
+	# 			for i in range(len(f)):
+	# 				f2 = list(f)
+	# 				f2[i] = f2[i] + 1
+	# 				allfacts.put(tuple(f2))
+	# 				minpreschecks.append(tuple(f2))
+		
+	# 	upperfacts = set([tuple(f) for f in upper_factorizations if tuple(f) not in factlistsbyfacts])
+		
+	# 	def parsenext(f):
+	# 		factlist = [[f], []]
+	# 		nextcovers = []
+	# 		gensbacked = []
+	# 		runagain = True
+			
+	# 		while runagain:
+	# 			runagain = False
+	# 			for i in range(len(f)):
+	# 				if i in gensbacked:
+	# 					continue
+					
+	# 				for ff in factlist[0]:
+	# 					if ff[i] > 0:
+	# 						break
+					
+	# 				if ff[i] == 0:
+	# 					continue
+					
+	# 				runagain = True
+	# 				gensbacked = gensbacked + [i]
+					
+	# 				backone = list(ff)
+	# 				backone[i] = backone[i] - 1
+					
+	# 				if tuple(backone) not in factlistsbyfacts:
+	# 					return ([],[])
+					
+	# 				cover = factlistsbyfacts[tuple(backone)]
+	# 				nextcovers.append(cover)
+					
+	# 				for j in [0,1]:
+	# 					for ff2 in outerposetelements[cover][j]:
+	# 						ff3 = list(ff2)
+	# 						ff3[i] = ff3[i] + 1
+							
+	# 						factlist[j].append(tuple(ff3))
+			
+	# 		factlist[0] = list(set(factlist[0]))
+	# 		factlist[1] = list(set(factlist[1]))
+			
+	# 		if len(factlist[1]) == 0:
+	# 			elem = sum([a*fi for (a,fi) in zip(self.atoms,f)]) % self.m
+	# 			if list(f) not in self.Factorization(elem):
+	# 				factlist[1] = factlist[1] + [tuple(f2) for f2 in self.Factorization(elem)]
+			
+	# 		return (factlist, nextcovers)
+		
+	# 	# compute full minimal presentation first, otherwise order gets messed up
+	# 	minpresouterelements = []
+	# 	minpresfacts = {}
+	# 	for f in minpreschecks:
+	# 		if f in factlistsbyfacts or f in minpresfacts:
+	# 			continue
+			
+	# 		(factlist, nextcovers) = parsenext(f)
+			
+	# 		if factlist == []:
+	# 			continue
+			
+	# 		for ff in factlist[0]:
+	# 			minpresfacts[ff] = True
+	# 		minpresouterelements.append((factlist, nextcovers))
+	# 		# don't update factlistsbyfacts yet!
+		
+	# 	# do Betti matrix merging
+	# 	for (factlist, nextcovers) in minpresouterelements:
+	# 		newindex = len(outerposetelements)
+	# 		for elem in minpreselements:
+	# 			leftfact = outerposetelements[elem][0][0]
+	# 			rightfact = factlist[0][0]
+	# 			thevec = vector([a-b for (a,b) in zip(leftfact, rightfact)])
+	# 			try:
+	# 				self.BettiMatrix().solve_left(thevec)
+	# 			except ValueError as e:
+	# 				continue
+				
+	# 			newindex = elem
+	# 			break
+			
+	# 		# actually new
+	# 		if newindex == len(outerposetelements):
+	# 			# redundant but better than missing some
+	# 			outerposetelements.append([[],factlist[1]])
+	# 			minpreselements.append(newindex)
+				
+	# 			outerposetcoverrelations = outerposetcoverrelations + [(c, newindex) for c in nextcovers]
+				
+	# 			f = factlist[0][0]
+	# 			# add next things to try
+	# 			for i in range(len(f)):
+	# 				f2 = list(f)
+	# 				f2[i] = f2[i] + 1
+	# 				allfacts.put(tuple(f2))
+			
+	# 		if factlist[0][0] in outerposetelements[newindex][0]:
+	# 			continue
+			
+	# 		for ff in factlist[0]:
+	# 			outerposetelements[newindex][0].append(ff)
+	# 			factlistsbyfacts[ff] = newindex
+	# 			if ff in upperfacts:
+	# 				upperfacts.remove(ff)
+		
+	# 	# now compute the higher ones
+	# 	while len(upperfacts) > 0:
+	# 		f = allfacts.get()
+			
+	# 		if f in factlistsbyfacts:
+	# 			continue
+			
+	# 		(factlist, nextcovers) = parsenext(f)
+			
+	# 		if factlist == []:
+	# 			continue
+			
+	# 		newindex = len(outerposetelements)
+	# 		# isnew = True
+	# 		# isminpres = False
+			
+	# 		# # indicates this has a minmal relation
+	# 		# if all(cover < self.m for cover in nextcovers):
+	# 		#     isminpres = True
+	# 		#     outerminrelations.append([[0] + list(factlist[0][0]), [1] + list(factlist[1][0])])
+	# 		#     for elem in minpreselements:
+	# 		#         leftfact = outerposetelements[elem][0][0]
+	# 		#         rightfact = factlist[0][0]
+	# 		#         thevec = vector([a-b for (a,b) in zip(leftfact, rightfact)])
+	# 		#         try:
+	# 		#             self.BettiMatrix().solve_left(thevec)
+	# 		#         except ValueError as e:
+	# 		#             continue
+					
+	# 		#         # these are secretly the same element
+	# 		#         isnew = False
+	# 		#         newindex = elem
+	# 		#         outerposetelements[elem][0] = outerposetelements[elem][0] + factlist[0]
+	# 		#         break
+			
+	# 		# if isnew:
+	# 		#     outerposetelements.append(factlist)
+			
+	# 		# if isnew and isminpres:
+	# 		#     minpreselements.append(newindex)
+			
+	# 		outerposetelements.append(factlist)
+			
+	# 		outerposetcoverrelations = outerposetcoverrelations + [(c, newindex) for c in nextcovers]
+	# 		for ff in factlist[0]:
+	# 			factlistsbyfacts[ff] = newindex
+	# 			if ff in upperfacts:
+	# 				upperfacts.remove(ff)
+			
+	# 		# add next things to try
+	# 		for i in range(len(f)):
+	# 			f2 = list(f)
+	# 			f2[i] = f2[i] + 1
+	# 			allfacts.put(tuple(f2))
+		
+	# 	for (op,factlist) in enumerate(outerposetelements):
+	# 		unifiedfacts = [(0,) + ff for ff in factlist[0]]
+	# 		unifiedfacts = unifiedfacts + [(1,) + ff for ff in factlist[1]]
+	# 		outerposetelements[op] = unifiedfacts
+		
+	# 	outerposet = Poset((list(range(len(outerposetelements))), outerposetcoverrelations), cover_relations=True)
+		
+	# 	return (outerposet, outerposetelements, minpreselements, outerminrelations)
+	
+	# def __OuterElementPoset(self, upper_factorizations = None):
+	# 	if upper_factorizations is None:
+	# 		upper_factorizations = [tuple([fi+1 for fi in f]) for p in self.poset.maximal_elements() for f in self.Factorization(p)]
+		
+	# 	(outerposet, outerposetelements, outerminpreselements, outerminrelations) = self.__outerelementinfo(upper_factorizations)
+		
+	# 	return (outerposet, outerposetelements)
+	
+	# def __FullMinimalPresentation(self, kunz_coords = None):
+	# 	upper_factorizations = [tuple([(fi+1 if i == j else fi) for (i,fi) in enumerate(self.Factorization(p)[0])]) for p in self.poset.maximal_elements() for j in range(len(self.atoms))]
+		
+	# 	(outerposet, outerposetelements, outerminpreselements, outerminrelations) = self.__outerelementinfo(upper_factorizations)
+		
+	# 	ret = [[[0] + p1, [0] + p2] for [p1,p2] in self.MinimalPresentation()]
+		
+	# 	for [leftfact, rightfact] in outerminrelations:
+	# 		if kunz_coords is not None:
+	# 			rightfact[0] = sum([(b-c)*kunz_coords[a2-1] for (a2,b,c) in zip(self.atoms, leftfact[1:], rightfact[1:])])
+	# 			rightfact[0] = rightfact[0] + sum([(b-c)*a2 for (a2,b,c) in zip([0]+self.atoms, leftfact, rightfact)])/self.m
+			
+	# 		ret.append([leftfact, rightfact])
+		
+	# 	return ret
+	
+	# def __OuterBettiFactorizationSets(self):
+	# 	upper_factorizations = [tuple([fi+1 for fi in f]) for p in self.poset.maximal_elements() for f in self.Factorization(p)]
+		
+	# 	(outerposet, outerfacts, outerminpreselements, outerminrelations) = self.__outerelementinfo(upper_factorizations)
+		
+	# 	ret = {d:[] for d in range(len(self.atoms))}
+	# 	for op in outerposet:
+	# 		factlist = outerfacts[op]
+	# 		sdc = SimplicialComplex(maximal_faces=[[i for i in range(len(f)) if f[i] > 0] for f in factlist], maximality_check=True)
+	# 		hom = sdc.homology()
+	# 		for d in range(len(hom)):
+	# 			if len(hom[d].gens()) > 0:
+	# 				ret[d] = ret[d] + [factlist]*len(hom[d].gens())
+		
+	# 	return ret
+	
+	# def __OuterBettiElements(self):
+	# 	outerbettifacts = self.OuterBettiFactorizationSets()
+	# 	return {d:list(sorted([sum([a*b for (a,b) in zip([0]+self.atoms,factlist[0])])%self.m for factlist in outerbettifacts[d]])) for d in range(len(self.atoms))}
+	
+	# def _FindSemigroupsOld(self, max_kunz_coord, how_many, min_kunz_coord = 2):
+	# 	poset = self.poset
+	# 	trucks = []
+	# 	modulus_fails = 0
+	# 	total_attempts = 0
+		
+	# 	if self.Dimension() == len(atoms):
+	# 		while len(trucks) < how_many:
+	# 			total_attempts = total_attempts + 1
+	# 			temp_gens = [m]
+	# 			for ii in atoms:
+	# 				noop= random.randint(min_kunz_coord , max_kunz_coord)*m + ii
+	# 				temp_gens.append(noop)
+	# 			if not sorted([y%m for y in temp_gens]) == sorted([0] + atoms):
+	# 				modulus_fails = modulus_fails + 1
+	# 				if modulus_fails >= 1000 and modulus_fails == total_attempts:
+	# 					print("Likely contains no semigroups")
+	# 					return []
+	# 				continue
+					
+	# 			if gcd(temp_gens) == 1:
+	# 				kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
+	# 				if kpp == poset:
+	# 					trucks.append(temp_gens)
+	# 	else:
+	# 		pres = matrix(QQ, self.BettiMatrix())
+	# 		pres.echelonize()
+	# 		while len(trucks) < how_many:
+	# 			total_attempts = total_attempts + 1
+	# 			temp = [0]*len(atoms)
+	# 			temp_gens = [m]
+	# 			for i in pres.nonpivots():
+	# 				boop = random.randint(min_kunz_coord , max_kunz_coord)*m + atoms[i]
+	# 				temp[i] = boop
+	# 				temp_gens.append(int(boop))
+	# 			vec = vector(temp)
+	# 			othervars = pres*vec
+	# 			# print(othervars)
+	# 			for jj in othervars: 
+	# 				temp_gens.append(int(-1*jj))
+	# 			# print(temp_gens)
+	# 			if list(sorted([y%m for y in temp_gens])) != list(sorted([0] + atoms)):
+	# 				modulus_fails = modulus_fails + 1
+	# 				if modulus_fails >= 10000 and modulus_fails == total_attempts:
+	# 					print("Likely contains no semigroups")
+	# 					return []
+	# 				continue
+	# 			if gcd(temp_gens) == 1 and all(x>0 for x in temp_gens):
+	# 				kpp = KunzPoset(m, semigroup_gens=temp_gens).poset
+	# 				#kpp.show()
+	# 				if kpp == poset:
+	# 					trucks.append(temp_gens)
+	# 				else:
+	# 					continue
+	# 			else:
+	# 				continue
+	# 	return trucks
 	
 
