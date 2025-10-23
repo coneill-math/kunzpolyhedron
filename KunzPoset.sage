@@ -998,7 +998,33 @@ class KunzFan:
 			# pl.show(viewer='threejs', online=True)
 			return pl
 
+	@staticmethod
+	def IterateAtomSets(m, e):
+		posetlist = set([])
+		for A in itertools.combinations([1..m-1], e-1):
+			if gcd(A + (m,)) > 1:
+				continue
 
+			A2 = min([tuple(sorted([(u*a)%m for a in A])) for u in [1..m-1] if gcd(u,m) == 1])
+			if A2 in posetlist:
+				continue
+
+			posetlist.add(A2)
+			yield A2
+
+	@staticmethod
+	def IterateKunzPosets(m, e, t=None, eta=None):
+		for A in KunzFan.IterateAtomSets(m,e):
+			KW = KunzFan(m,A)
+			KW.DoKunzWalk(compute_all_faces=True)
+			for P in KW.posets:
+				if t != None and len(P.poset.maximal_elements()) != t:
+					continue
+
+				if eta != None and len(P.FullMinimalPresentation()) != eta:
+					continue
+
+				yield P
 
 
 
