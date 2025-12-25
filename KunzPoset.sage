@@ -956,6 +956,8 @@ class KunzFan:
 			print("You must walk first!")
 			return
 
+		chambers = self.chambers
+
 		def theproj(v):
 			v = vector(v) - vector([sum(v)/3]*3)
 			mat = matrix([
